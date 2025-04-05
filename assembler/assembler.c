@@ -65,7 +65,7 @@ int main(int argc, char const* argv[]) {
 
 	ssize_t read = getline(&line, &n, source);
 	while (read != -1) {
-		char* cleanLine = preprocess(line);
+		char* cleanLine = preprocess(line, read);
 
 		// cleanLine does not have any leading or trailing whitespace, or comments
 		// if null, it means it did not contain any useful stuff
@@ -73,7 +73,7 @@ int main(int argc, char const* argv[]) {
 		if (cleanLine) {
 			// First token is very important
 			char* saveptr;
-			char* tok = strtok_r(line, " ", &saveptr);
+			char* tok = strtok_r(line, " \t", &saveptr);
 
 			if (*tok == '.') handleDirective(symbTable, sectTable, dataTable, tok, saveptr);
 			else if (*(saveptr-2) == ':') handleLabel(symbTable, sectTable, tok, saveptr);
