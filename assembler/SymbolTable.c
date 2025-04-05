@@ -16,7 +16,7 @@ SymbolTable* initSymbTable() {
 	return symbtable;
 }
 
-symb_entry_t* initSymbEntry(char* name, char* expr, uint32_t value, uint32_t flags) {
+symb_entry_t* initSymbEntry(char* name, char* expr, int32_t value, uint32_t flags) {
 	symb_entry_t* symbEntry = (symb_entry_t*) malloc(sizeof(symb_entry_t));
 	if (!symbEntry) handleError(ERR_MEM, FATAL, "Could not allocate memory for Symbol Entry!\n");
 

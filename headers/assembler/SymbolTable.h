@@ -8,7 +8,7 @@ typedef struct SymbolEntry {
 	char* name;
 	union {
 		char* expr;
-		uint32_t value;
+		int32_t value;
 	};
 	uint32_t flags;
 } symb_entry_t;
@@ -39,6 +39,11 @@ typedef struct SymbolTable {
 #define GET_REFERENCE(flags) ((flags>>1) & 0b1)
 #define GET_DEFINED(flags) ((flags>>0) & 0b1)
 
+#define SET_EXPRESSION(flags) (flags &= (0 << 7)) // Sets the expression flag to 0
+#define SET_LOCALITY(flags) (flags |= (1 << 2)) // Sets the locality flag to 1 for global
+#define SET_REFERENCE(flags) (flags |= (1 << 1)) // Sets referenced
+#define SET_DEFINED(flags) (flags |= (1 << 0))
+
 
 /**
  * Creates an empty symbol table.
@@ -56,7 +61,9 @@ SymbolTable* initSymbTable();
  * @param flags The symbol entry flags to set
  * @return A symbol entry
  */
-symb_entry_t* initSymbEntry(char* name, char* expr, uint32_t value, uint32_t flags);
+symb_entry_t* initSymbEntry(char* name, char* expr, int32_t value, uint32_t flags);
+
+// void updateSymbEntry(symb_entry_t* symbEntry, int32_t value, uint8_t activeSection, )
 
 /**
  * Adds a symbol entry to the symbol table. This creates a new entry to the table, that is 
