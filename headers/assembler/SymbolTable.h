@@ -14,7 +14,7 @@ typedef struct SymbolEntry {
 } symb_entry_t;
 
 typedef struct SymbolTable {
-	symb_entry_t* entries;
+	symb_entry_t** entries;
 	uint32_t size;
 	uint32_t capacity;
 } SymbolTable;

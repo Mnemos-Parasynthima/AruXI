@@ -43,8 +43,8 @@ void addSymbEntry(SymbolTable* symbTable, symb_entry_t* symbEntry) {
 	}
 
 	int idx = symbTable->size;
-	// symbTable->entries[idx]
-	// TODO
+	symbTable->entries[idx] = symbEntry;
+	symbTable->size++;	
 }
 
 void updateSymbEntry(symb_entry_t* symbEntry, uint32_t value, uint32_t flags) {
@@ -56,7 +56,7 @@ void updateSymbEntry(symb_entry_t* symbEntry, uint32_t value, uint32_t flags) {
 
 symb_entry_t* getSymbEntry(SymbolTable* symbTable, char* name) {
 	for (int i = 0; i < symbTable->size; i++) {
-		if (strcmp(symbTable->entries[i].name, name) == 0) return &symbTable->entries[i];
+		if (strcmp(symbTable->entries[i]->name, name) == 0) return &symbTable->entries[i];
 	}
 
 	return NULL;
@@ -64,8 +64,8 @@ symb_entry_t* getSymbEntry(SymbolTable* symbTable, char* name) {
 
 void deleteSymbTable(SymbolTable* symbTable) {
 	for (int i = 0; i < symbTable->size; i++) {
-		symb_entry_t entry = symbTable->entries[i];
-		free(entry.name);
+		symb_entry_t* entry = symbTable->entries[i];
+		free(entry->name);
 		// Assuming expr has been freed before
 		// Should be guaranteed by updateSymbEntry()
 	}
