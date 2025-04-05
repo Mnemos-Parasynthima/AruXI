@@ -12,8 +12,8 @@ typedef struct SectEntry {
 } section_entry_t;
 
 typedef struct SectionTable {
-	section_entry_t entries[3]; // 0 for text, 1 for data, 2 for const
-	uint8_t activeSection; // 0 for text, 1 for data, 2 for const
+	section_entry_t entries[4]; // 0 for text, 1 for data, 2 for const, 3 for bss
+	uint8_t activeSection; // 0 for text, 1 for data, 2 for const, 3 for bss
 } SectionTable;
 
 SectionTable* initSectionTable();
