@@ -35,8 +35,10 @@ static char* VALID_REGISTERS[] = {
 // The handle* functions are kind of lexer-parser type of functionality but not really but kind of
 // Might need to find a new home for them
 
-void handleDirective(SymbolTable* symbTable, SectionTable* sectTable, DataTable* dataTable, char* directive, char* save);
+void handleDirective(SymbolTable* symbTable, SectionTable* sectTable, DataTable* dataTable, char* directive, char* args);
 
 void handleLabel(SymbolTable* symbTable, SectionTable* sectTable, char** tok, char** save);
+
+void handleInstruction(SymbolTable* symbTable, SectionTable* sectTable, DataTable* dataTable, char* instr, char* args);
 
 #endif

@@ -33,18 +33,17 @@ enum DirectiveIndex {
 #define TOUPPER(str) for (; *str; ++str) *str = toupper(*str)
 
 
-static bool validateDirective(char* directive, int* index) {
+static int validateDirective(char* directive) {
 	int size = sizeof(VALID_DIRECTIVES) / sizeof(char*);
 	for (int i = 0; i < size; i++) {
 		// printf("Comparing directive %s to valid directive %s\n", directive, VALID_DIRECTIVES[i]);
 		if (strcmp(VALID_DIRECTIVES[i], directive) == 0) {
 			// printf("Equal directive at %d\n", i);
-			*index = i;
-			return true;
+			return i;
 		}
 	}
 
-	return false;
+	handleError(ERR_DIRECTIVE_NOT_FOUND, FATAL, "Directive %s is not valid!\n", directive);
 }
 
 static void validateSection(enum DirectiveIndex directiveType, uint8_t activeSection) {
@@ -359,12 +358,9 @@ static void alignDirective(SectionTable* sectTable, DataTable* dataTable, char* 
 void handleDirective(SymbolTable* symbTable, SectionTable* sectTable, DataTable* dataTable, char* directive, char* args) {
 	printf("\tHandling directive (%s) with args (%s)\n", directive, args);
 	
-	int index = -1;
 	char* temp = directive;
 	TOLOWER(temp);
-	bool valid = validateDirective(directive, &index);
-
-	if (!valid) handleError(ERR_DIRECTIVE_NOT_FOUND, FATAL, "Directive %s is not valid!\n", directive);
+	int index = validateDirective(directive);
 
 	switch (index)	{
 		case DATA: sectTable->activeSection = 0; sectTable->entries[0].present = true; break;
@@ -454,4 +450,21 @@ void handleLabel(SymbolTable* symbTable, SectionTable* sectTable, char** tok, ch
 	// There might be a directive or instruction
 	if (*save) *tok = strtok_r(NULL, " \t", save);
 	else *tok = NULL; // Indicate nothing left for the line
+}
+
+static void validateInstruction(char* instr) {
+	int size = sizeof(VALID_INSTRUCTIONS) / sizeof(char*);
+	for (int i = 0; i < size; i++) {
+		if (strcmp(VALID_INSTRUCTIONS[i], instr) == 0) handleError(ERR_INVALID_INSTRUCTION, FATAL, "Instruction %s is not valid!\n", instr);
+	}
+}
+
+void handleInstruction(SymbolTable* symbTable, SectionTable* sectTable, DataTable* dataTable, char* instr, char* args) {
+	printf("\tHandling instruction (%s) with args (%s)\n", instr, args);
+
+	TOLOWER(instr);
+	// Make sure instr is valid
+	validateInstruction(instr);
+
+
 }
