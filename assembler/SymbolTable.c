@@ -9,7 +9,7 @@ SymbolTable* initSymbTable() {
 	SymbolTable* symbtable = (SymbolTable*) malloc(sizeof(SymbolTable));
 	if (!symbtable) handleError(ERR_MEM, FATAL, "Could not allocate memory for SymbolTable!\n");
 
-	symbtable->entries = (symb_entry_t*) malloc(sizeof(symb_entry_t) * 10);
+	symbtable->entries = (symb_entry_t**) malloc(sizeof(symb_entry_t*) * 10);
 	symbtable->capacity = 10;
 	symbtable->size = 0;
 
@@ -36,7 +36,7 @@ void addSymbEntry(SymbolTable* symbTable, symb_entry_t* symbEntry) {
 	if (symbTable->size == symbTable->capacity) {
 		symbTable->capacity *= 2;
 
-		symb_entry_t* temp = (symb_entry_t*) realloc(symbTable->entries, symbTable->capacity * sizeof(symb_entry_t*));
+		symb_entry_t** temp = (symb_entry_t**) realloc(symbTable->entries, symbTable->capacity * sizeof(symb_entry_t*));
 		if (!temp) handleError(ERR_MEM, FATAL, "Could not reallocate memory for new entries!\n");
 
 		symbTable->entries = temp;
@@ -56,7 +56,7 @@ void updateSymbEntry(symb_entry_t* symbEntry, uint32_t value, uint32_t flags) {
 
 symb_entry_t* getSymbEntry(SymbolTable* symbTable, char* name) {
 	for (int i = 0; i < symbTable->size; i++) {
-		if (strcmp(symbTable->entries[i]->name, name) == 0) return &symbTable->entries[i];
+		if (strcmp(symbTable->entries[i]->name, name) == 0) return symbTable->entries[i];
 	}
 
 	return NULL;
