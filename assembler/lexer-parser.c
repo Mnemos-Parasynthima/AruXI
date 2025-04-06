@@ -29,6 +29,10 @@ enum DirectiveIndex {
 	ALIGN
 };
 
+enum ImmediateSize {
+	IMM14, SIMM24, SIMM19
+};
+
 #define TOLOWER(str) for (; *str; ++str) *str = tolower(*str)
 #define TOUPPER(str) for (; *str; ++str) *str = toupper(*str)
 
@@ -44,6 +48,7 @@ static int validateDirective(char* directive) {
 	}
 
 	handleError(ERR_DIRECTIVE_NOT_FOUND, FATAL, "Directive %s is not valid!\n", directive);
+	return -1;
 }
 
 static void validateSection(enum DirectiveIndex directiveType, uint8_t activeSection) {
@@ -388,6 +393,7 @@ void handleDirective(SymbolTable* symbTable, SectionTable* sectTable, DataTable*
 	}
 }
 
+
 static void validateLabel(char* label) {
 	// Make sure initial character is valid
 	// if (isalpha(*label)) printf("isalpha(%c) true\n", *label);
@@ -452,19 +458,185 @@ void handleLabel(SymbolTable* symbTable, SectionTable* sectTable, char** tok, ch
 	else *tok = NULL; // Indicate nothing left for the line
 }
 
-static void validateInstruction(char* instr) {
+
+static int validateInstruction(char* instr) {
 	int size = sizeof(VALID_INSTRUCTIONS) / sizeof(char*);
 	for (int i = 0; i < size; i++) {
-		if (strcmp(VALID_INSTRUCTIONS[i], instr) == 0) handleError(ERR_INVALID_INSTRUCTION, FATAL, "Instruction %s is not valid!\n", instr);
+		if (strcmp(VALID_INSTRUCTIONS[i], instr) == 0) return i;	
 	}
+	
+	handleError(ERR_INVALID_INSTRUCTION, FATAL, "Instruction %s is not valid!\n", instr);
+	return -1;
 }
 
-void handleInstruction(SymbolTable* symbTable, SectionTable* sectTable, DataTable* dataTable, char* instr, char* args) {
+static void validateRegister(char* reg) {
+	int size = sizeof(VALID_REGISTERS) / sizeof(char*);
+	for (int i = 0; i < size; i++) {
+		if (strcmp(VALID_REGISTERS[i], reg) == 0) return;
+	}
+
+	handleError(ERR_INVALID_REGISTER, FATAL, "Register %s is not a valid register!\n", reg);
+}
+
+static void validateImmediate(char* imm, enum ImmediateSize immSize) {
+	if (*imm != '#') handleError(ERR_INVALID_SYNTAX, FATAL, "Immediate %s does not start with '#'!\n", imm);
+
+	// Make sure the sizes are appropriate
+}
+
+#define HANDLE_INSTR(name) static void name (InstructionStream* instrStream, SymbolTable* symbTable, SectionTable* sectTable, char* instr, char* args)
+
+HANDLE_INSTR(handleI) {
+	// I-Types typically have it in the form `[instr] <xd>, <xs>, #<imm>`
+	// Exception is `not <xd>, #<imm>`
+
+	char* xd = NULL;
+	char* xs = NULL;
+	char* imm = NULL;
+
+	xd = strtok_r(NULL, " \t,", &args);
+	if (!xd) handleError(ERR_INVALID_SYNTAX, FATAL, "No destination register for %s!\n", instr);
+	validateRegister(xd);
+
+	if (strcmp(instr, "not") != 0) {
+		xs = strtok_r(NULL, " \t,", &args);
+		if (!xs) handleError(ERR_INVALID_SYNTAX, FATAL, "No source register for %s!\n", instr);
+		validateRegister(xs);
+	}
+
+	imm = strtok_r(NULL, " \t", &args);
+	if (!imm) handleError(ERR_INVALID_SYNTAX, FATAL, "No immediate for %s!\n", instr);
+	validateImmediate(imm, IMM14);
+
+	char* operands[] = { NULL, NULL, NULL, NULL };
+
+	operands[0] = xd;
+	if (xs) {
+		operands[1] = xs;
+		operands[2] = imm;
+	} else {
+		operands[1] = imm;
+	}
+
+	instr_obj_t* instrObj = initInstrObj(sectTable->entries[3].lp, NULL, instr, (char**) operands);
+	addInstrObj(instrStream, instrObj);
+}
+
+HANDLE_INSTR(handleR) {
+	// I-Types typically have it in the form `[instr] <xd>, <xs>, <xr>`
+	// Exception is `not <xd>, <xs>`
+
+	char* xd = NULL;
+	char* xs = NULL;
+	char* xr = NULL;
+
+	xd = strtok_r(NULL, " \t,", &args);
+	if (!xd) handleError(ERR_INVALID_SYNTAX, FATAL, "No destination register for %s!\n", instr);
+	validateRegister(xd);
+
+	xs = strtok_r(NULL, " \t,", &args);
+	if (!xs) handleError(ERR_INVALID_SYNTAX, FATAL, "No source register for %s!\n", instr);
+	validateRegister(xs);
+
+	if (strcmp(instr, "not") != 0) {
+		xr = strtok_r(NULL, " \t", &args);
+		if (!xr) handleError(ERR_INVALID_SYNTAX, FATAL, "No second source register for %s!\n", instr);
+	}
+
+	char* operands[] = { NULL, NULL, NULL, NULL };
+
+	operands[0] = xd;
+	if (xr) {
+		operands[1] = xs;
+		operands[2] = xr;
+	} else {
+		operands[1] = xs;
+	}
+
+	instr_obj_t* instrObj = initInstrObj(sectTable->entries[3].lp, NULL, instr, (char**) operands);
+	addInstrObj(instrStream, instrObj);
+	free(operands);
+}
+
+HANDLE_INSTR(handleIR) {
+	char* temp = args;
+
+	while (*temp) {
+		if (*temp == '#') {
+			handleI(instrStream, symbTable, sectTable, instr, args);
+			return;
+		}
+		temp++;
+	}
+	handleR(instrStream, symbTable, sectTable, instr, args);
+}
+
+HANDLE_INSTR(handleM) {
+
+
+	// instr_obj_t* instrObj = initInstrObj(sectTable->entries[3].lp, NULL, instr, args);
+	// addInstrObj(instrStream, instrObj);
+}
+
+HANDLE_INSTR(handleBi) {
+	char* label = strtok_r(NULL, " \t", args);
+	if (!label) handleError(ERR_INVALID_SYNTAX, FATAL, "Label not found for %s!\n", instr);
+
+	if (*label == '#') handleError(ERR_INVALID_SYNTAX, FATAL, "Bad expression for %s!\n", label);
+
+	// Label can either be just a label (_HERE) or an expression involving a label
+	// Leave the evaluation until later
+	// Just make sure it is aligned to 4 bytes
+
+	char* operands[] = { label, NULL };
+	instr_obj_t* instrObj = initInstrObj(sectTable->entries[3].lp, NULL, instr, (char**) operands);
+	addInstrObj(instrStream, instrObj);
+}
+
+HANDLE_INSTR(handleBu) {
+	// ubr <xd> or ret
+	char* xd = strtok_r(NULL, " \t,", &args);
+	char* operands[2] = {NULL, NULL};
+
+	if (xd) {
+		validateRegister(xd);
+		operands[0] = xd;
+	} else operands[0] = "lr";
+
+	instr_obj_t* instrObj = initInstrObj(sectTable->entries[3].lp, NULL, instr, (char**) operands);
+	addInstrObj(instrStream, instrObj);
+}
+
+HANDLE_INSTR(handleBc) {
+	// Almost the same as Bi but check on the condition
+
+	bool valid = false;
+	int size = sizeof(VALID_CONDS) / sizeof(char*);
+	for (int i = 0; i < size; i++) {
+		if (strcmp(VALID_CONDS[i], instr+1) == 0) valid = true;
+	}
+
+	if (!valid) handleError(ERR_INVALID_INSTRUCTION, FATAL, "Condition %s is not valid!\n", instr+1);
+
+	handleBi(instrStream, symbTable, sectTable, instr, args);
+}
+
+void handleInstruction(InstructionStream* instrStream, SymbolTable* symbTable, SectionTable* sectTable, char* instr, char* args) {
 	printf("\tHandling instruction (%s) with args (%s)\n", instr, args);
 
-	TOLOWER(instr);
+	char* temp = instr;
+	TOLOWER(temp);
 	// Make sure instr is valid
-	validateInstruction(instr);
+	int index = validateInstruction(instr);
 
+	// fixAliases(&instr, &args, index);
 
+	if (index >= IR_TYPE_IDX && index < I_TYPE_IDX) handleIR(instrStream, symbTable, sectTable, instr, args);
+	else if (index >= I_TYPE_IDX && index < R_TYPE_IDX ) handleI(instrStream, symbTable, sectTable, instr, args);
+	else if (index >= R_TYPE_IDX && index < M_TYPE_IDX) handleR(instrStream, symbTable, sectTable, instr, args);
+	else if (index >= M_TYPE_IDX && index < Bi_TYPE_IDX) handleM(instrStream, symbTable, sectTable, instr, args);
+	else if (index >= Bi_TYPE_IDX && index < Bu_TYPE_IDX) handleBi(instrStream, symbTable, sectTable, instr, args);
+	else if (index >= Bu_TYPE_IDX && index < Bc_TYPE_IDX) handleBu(instrStream, symbTable, sectTable, instr, args);
+	else if (index >= Bc_TYPE_IDX && index < S_TYPE_IDX) {}
+	else if (index >= S_TYPE_IDX && index < F_TYPE_IDX) {}
 }
