@@ -197,17 +197,17 @@ static void byteDirective(SectionTable* sectTable, DataTable* dataTable, char* a
 	strcpy(temp, args);
 
 	// Calculate how many expressions there are
-	// Entry size will be count * 8 (assuming each expression results in a byte)
+	// Entry size will be count * 1 (assuming each expression results in a byte)
 	int count = 0;
-	char* tok = strtok(temp, " \t,");
+	char* tok = strtok(temp, ",");
 	while (tok) {
 		count++;
-		tok = strtok(NULL, " \t");
+		tok = strtok(NULL, ",");
 	}
 	free(temp);
 
-	data_entry_t* entry = initDataEntry(1, sectTable->entries[sectTable->activeSection].lp, count * 8, args, NULL);
-	sectTable->entries[sectTable->activeSection].lp += (count*8);
+	data_entry_t* entry = initDataEntry(1, sectTable->entries[sectTable->activeSection].lp, count * 1, args, NULL);
+	sectTable->entries[sectTable->activeSection].lp += (count*1);
 	addDataEntry(dataTable, entry, (data_sect_type_t) sectTable->activeSection);
 }
 
@@ -222,17 +222,17 @@ static void hwordDirective(SectionTable* sectTable, DataTable* dataTable, char* 
 	strcpy(temp, args);
 
 	// Calculate how many expressions there are
-	// Entry size will be count * 16 (assuming each expression results in a halfword)
+	// Entry size will be count * 2 (assuming each expression results in a halfword)
 	int count = 0;
-	char* tok = strtok(temp, " \t,");
+	char* tok = strtok(temp, ",");
 	while (tok) {
 		count++;
-		tok = strtok(NULL, " \t");
+		tok = strtok(NULL, ",");
 	}
 	free(temp);
 
-	data_entry_t* entry = initDataEntry(2, sectTable->entries[sectTable->activeSection].lp, count * 16, args, NULL);
-	sectTable->entries[sectTable->activeSection].lp += (count*16);
+	data_entry_t* entry = initDataEntry(2, sectTable->entries[sectTable->activeSection].lp, count * 2, args, NULL);
+	sectTable->entries[sectTable->activeSection].lp += (count*2);
 	addDataEntry(dataTable, entry, (data_sect_type_t) sectTable->activeSection);
 }
 
@@ -245,17 +245,17 @@ static void wordDirective(SectionTable* sectTable, DataTable* dataTable, char* a
 	strcpy(temp, args);
 
 	// Calculate how many expressions there are
-	// Entry size will be count * 32 (assuming each expression results in a word)
+	// Entry size will be count * 4 (assuming each expression results in a word)
 	int count = 0;
-	char* tok = strtok(temp, " \t,");
+	char* tok = strtok(temp, ",");
 	while (tok) {
 		count++;
-		tok = strtok(NULL, " \t");
+		tok = strtok(NULL, ",");
 	}
 	free(temp);
 
-	data_entry_t* entry = initDataEntry(3, sectTable->entries[sectTable->activeSection].lp, count * 32, args, NULL);
-	sectTable->entries[sectTable->activeSection].lp += (count*32);
+	data_entry_t* entry = initDataEntry(3, sectTable->entries[sectTable->activeSection].lp, count * 4, args, NULL);
+	sectTable->entries[sectTable->activeSection].lp += (count*4);
 	addDataEntry(dataTable, entry, (data_sect_type_t) sectTable->activeSection);
 }
 
@@ -307,6 +307,7 @@ static void floatDirective(SectionTable* sectTable, DataTable* dataTable, char* 
 	addDataEntry(dataTable, entry, (data_sect_type_t) sectTable->activeSection);
 }
 
+// TODO
 static void zeroDirective(SectionTable* sectTable, DataTable* dataTable, SymbolTable* symbTable, char* args) {
 	validateSection(ZERO, sectTable->activeSection);
 
@@ -347,10 +348,12 @@ static void zeroDirective(SectionTable* sectTable, DataTable* dataTable, SymbolT
 	// addDataEntry(dataTable, entry, (data_sect_type_t) sectTable->activeSection);
 }
 
+// TODO
 static void fillDirective(SectionTable* sectTable, DataTable* dataTable, char* args) {
 	
 }
 
+// TODO
 static void alignDirective(SectionTable* sectTable, DataTable* dataTable, char* args) {}
 
 void handleDirective(SymbolTable* symbTable, SectionTable* sectTable, DataTable* dataTable, char* directive, char* args) {
@@ -432,21 +435,15 @@ void handleLabel(SymbolTable* symbTable, SectionTable* sectTable, char** tok, ch
 		entry->value = sectTable->entries[sectTable->activeSection].lp;
 		
 		entry->flags |= (0 << 7); // ensure expression flag is set to 0
-		printf("Updated expression flag to %d\n", GET_EXPRESSION(entry->flags));
 
 		uint32_t mask = ~(0b11 << 4); // update section defined in 
-		printf("mask is %x with flags being %d\n", mask, entry->flags);
 		entry->flags &= mask;
-		printf("Applied mask, flags are %d\n", entry->flags);
 		entry->flags |= (sectTable->activeSection << 4);
-		printf("Updated section flag to %d    %d\n", GET_SECTION(entry->flags), sectTable->activeSection<<4);
 
 		entry->flags |= (0 << 3); // ensure type is set to 0
-		printf("Updated type flag to %d\n", GET_TYPE(entry->flags));
 		// Locality is only changed by .glob, everything defaults to 0
 		// Reference is only changed by non-(label ids and .set)
 		entry->flags |= (1 << 0); // Defined is set since it is defined
-		printf("Updated defined flag to %d\n", GET_DEFINED(entry->flags));
 	} else {
 		printf("Label does not exist. Creating record.\n");
 		entry = initSymbEntry(label, NULL, sectTable->entries[sectTable->activeSection].lp, CREATE_FLAGS(0, sectTable->activeSection, 0, 0, 0, 1));

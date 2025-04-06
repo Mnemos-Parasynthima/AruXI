@@ -40,14 +40,37 @@ data_entry_t* initDataEntry(uint8_t type, uint32_t addr, uint32_t size, char* so
 }
 
 void addDataEntry(DataTable* dataTable, data_entry_t* dataEntry, data_sect_type_t sectType) {
-	data_entry_t** entries = NULL;
+	data_entry_t*** entries = NULL;
+	uint32_t* size = 0;
+	uint32_t* capacity = 0;
 
-	if (sectType == DATA_SECT) entries = dataTable->dataEntries;
-	else if (sectType == CONST_SECT) entries = dataTable->constEntries;
-	else if (sectType == BSS_SECT) entries = dataTable->bssEntries;
-	else return;
+	printf("Detected section to add for: %d\n", sectType);
+	if (sectType == DATA_SECT) {
+		entries = &dataTable->dataEntries;
+		size = &dataTable->dSize;
+		capacity = &dataTable->dCapacity;
+	} else if (sectType == CONST_SECT) {
+		entries = &dataTable->constEntries;
+		size = &dataTable->cSize;
+		capacity = &dataTable->cCapacity;
+	} else if (sectType == BSS_SECT) {
+		entries = &dataTable->bssEntries;
+		size = &dataTable->bSize;
+		capacity = &dataTable->bCapacity;
+	}	else return;
 
-	// TODO
+	if (*size == *capacity) {
+		*capacity *= 2;
+
+		data_entry_t** temp = (data_entry_t**) realloc(entries, sizeof(data_entry_t*) * (*capacity));
+		if (!temp) handleError(ERR_MEM, FATAL, "Could not reallocate memory for data entries!\n");
+
+		*entries = temp;
+	}
+
+	int idx = *size;
+	(*entries)[idx] = dataEntry;
+	*size = *size + 1;
 }
 
 data_entry_t* getDataEntry(DataTable* dataTable, data_sect_type_t sectType, uint32_t addr) {
@@ -69,6 +92,60 @@ data_entry_t* getDataEntry(DataTable* dataTable, data_sect_type_t sectType, uint
 	return NULL;
 }
 
+static void displayDataEntry(data_entry_t* dataEntry) {
+	uint8_t type = dataEntry->type;
+
+	char* typeStr = NULL;
+	char* strdata = NULL;
+	switch (type)	{
+		case 0:
+			typeStr = "string";
+			strdata = dataEntry->data.str;
+			break;
+		case 1:
+			typeStr = "bytes";
+			break;
+		case 2:
+			typeStr = "halfwords";
+			break;
+		case 3:
+			typeStr = "words";
+			break;
+		case 4:
+			typeStr = "floats";
+			break;
+		default:
+			break;
+	}
+
+	printf("\t\tType: %s\n", typeStr);
+	printf("\t\tAddress: 0x%x\n", dataEntry->addr);
+	printf("\t\tSize: 0x%x\n", dataEntry->size);
+	printf("\t\tSource: %s\n", dataEntry->source);
+}
+
+void displayDataTable(DataTable* dataTable) {
+	printf("Data Table:\n");
+
+	printf("\tData (%d entries)\n", dataTable->dSize);
+	for (int i = 0; i < dataTable->dSize; i++) {
+		displayDataEntry(dataTable->dataEntries[i]);
+	}
+	printf("\n");
+	
+	printf("\tConst (%d entries)\n", dataTable->cSize);
+	for (int i = 0; i < dataTable->cSize; i++) {
+		displayDataEntry(dataTable->constEntries[i]);
+	}
+	printf("\n");
+
+	printf("\tBss (%d entries)\n", dataTable->bSize);
+	for (int i = 0; i < dataTable->bSize; i++) {
+		displayDataEntry(dataTable->bssEntries[i]);
+	}
+	printf("\n");
+}
+
 void deleteDataTable(DataTable* dataTable) {
 	for (int i = 0; i < dataTable->dSize; i++) {
 		data_entry_t* entry = dataTable->dataEntries[i];
@@ -78,7 +155,7 @@ void deleteDataTable(DataTable* dataTable) {
 		free(entry);
 	}
 
-	for (int i = 0; i < dataTable->dSize; i++) {
+	for (int i = 0; i < dataTable->cSize; i++) {
 		data_entry_t* entry = dataTable->constEntries[i];
 
 		free(entry->source);
@@ -86,11 +163,11 @@ void deleteDataTable(DataTable* dataTable) {
 		free(entry);
 	}
 
-	for (int i = 0; i < dataTable->dSize; i++) {
+	for (int i = 0; i < dataTable->bSize; i++) {
 		data_entry_t* entry = dataTable->bssEntries[i];
 
 		free(entry->source);
-		// entry->data. is not freed since bss cannot allow for actual data
+		// entry->data.* is not freed since bss cannot allow for actual data
 		// it only needs the size needed
 		free(entry);
 	}
