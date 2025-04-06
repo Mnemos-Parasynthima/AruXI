@@ -22,13 +22,11 @@ char* preprocess(char* line, ssize_t len) {
 	while (isblank(*start)) start++;
 
 	// Comment has been reached, ignore the rest
-	if (*start == COMMENT) {
-		free(line);
-		return NULL;
-	}
+	if (*start == COMMENT) return NULL;
 
 	// Start from the right and go through any whitespace left-wise
 	char* end = (line + len) - 1;
+	if (*end == '\n') end-=1;
 	while (end > start && isblank(*end)) end--;
 
 	// There may be comments at the end, start search at (new)beginning
@@ -41,8 +39,6 @@ char* preprocess(char* line, ssize_t len) {
 	if (!trimmed) handleError(ERR_MEM, FATAL, "Could not allocate memory for trimmed string!\n");
 	memcpy(trimmed, start, newSize);
 	*(trimmed + newSize) = '\0';
-
-	free(line);
 
 	return trimmed;
 }
