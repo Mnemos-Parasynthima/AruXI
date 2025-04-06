@@ -52,6 +52,7 @@ int main(int argc, char const* argv[]) {
 	}
 
 	FILE* source = fopen(infile, "r");
+	if (!source) handleError(ERR_IO, FATAL, "Could not open %s!\n", infile);
 
 	// PASS 1
 	SymbolTable* symbTable = initSymbTable();
@@ -71,21 +72,39 @@ int main(int argc, char const* argv[]) {
 		// if null, it means it did not contain any useful stuff
 
 		if (cleanLine) {
+			printf("CURRENT WORKING SECTION: ");
+			if (sectTable->activeSection == 0) printf("DATA\n");
+			else if (sectTable->activeSection == 1) printf("CONST\n");
+			else if (sectTable->activeSection == 2) printf("BSS\n");
+			else if (sectTable->activeSection == 3) printf("TEXT\n");
+			else printf("UNRECOGNIZED\n");
+
+
 			// First token is very important
-			char* saveptr;
-			char* tok = strtok_r(line, " \t", &saveptr);
+			char* saveptr = NULL;
+			char* tok = strtok_r(cleanLine, " \t", &saveptr);
+			size_t tokLen = strlen(tok);
 
-			if (*tok == '.') handleDirective(symbTable, sectTable, dataTable, tok, saveptr);
-			else if (*(saveptr-2) == ':') handleLabel(symbTable, sectTable, tok, saveptr);
-			else { // Assume it is an instruction
-				// Since it is assuming the line is an instruction, ensure the current section is text
-				if (sectTable->activeSection != 0) handleError(ERR_INSTR_NOT_IN_TEXT, FATAL, "Instruction is not in the text section!\n");
-				
-				// tokenize, parse, and eval (if needed) instruction
+			printf("Working on (%s) (%s)\n", tok, saveptr);
+
+			// bool seqDirective
+			if (*(tok+tokLen-1) == ':') {
+				*(tok+tokLen-1) = '\0'; // Take off ':'
+				handleLabel(symbTable, sectTable, &tok, &saveptr);
+			}
+
+			if (tok) {
+				if (*tok == '.') handleDirective(symbTable, sectTable, dataTable, tok+1, saveptr);
+				else { // Assume it is an instruction
+					// Since it is assuming the line is an instruction, ensure the current section is text
+					if (sectTable->activeSection != 3) handleError(ERR_INSTR_NOT_IN_TEXT, FATAL, "Instruction `%s` is not in the text section!\n", saveptr);
+
+					// tokenize, parse, and eval (if needed) instruction
 
 
-				// Increment LP by instruction size
-				sectTable->entries[0].lp += 4;
+					// Increment LP by instruction size
+					sectTable->entries[0].lp += 4;
+				}
 			}
 		}
 
@@ -93,6 +112,8 @@ int main(int argc, char const* argv[]) {
 	}
 
 	// Confirms existance of text section and _init label (and marked global) at text, undefined (but referenced) symbols
+
+	displaySymbTable(symbTable);
 
 	if (!sectTable->entries[0].present) handleError(ERR_NO_TEXT, FATAL, "Text section has not been defined!\n");
 
@@ -102,7 +123,7 @@ int main(int argc, char const* argv[]) {
 	if (GET_SECTION(initLabel->flags) != 0b11) handleError(ERR_NO_ENTRY, FATAL, "Entry point is not in text section!\n");
 
 	for (int i = 0; i < symbTable->size; i++) {
-		symb_entry_t* entry = &symbTable->entries[i];
+		symb_entry_t* entry = symbTable->entries[i];
 
 		if (GET_DEFINED(entry->flags) == 0b0) handleError(ERR_UNDEFINED_SYMBOL, FATAL, "Symbol %s is referenced but undefined!\n", entry->name);
 	}
