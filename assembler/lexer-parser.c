@@ -578,7 +578,7 @@ HANDLE_INSTR(handleM) {
 	// mem_op reg, [x], y
 
 	// But ld has an exception:
-	// ld reg, imm
+	// ld reg, imm + 2
 	// Which decomposes into three instructions: mv -> lsl -> add
 
 	// After getting the destination register,
@@ -593,9 +593,59 @@ HANDLE_INSTR(handleM) {
 
 	char* base = NULL;
 	char* offset = 0xFEEDFAED;
-	char* index = NULL;;
+	char* index = NULL;
 
 	base = strtok_r(NULL, " \t,", &args);
+	// ld doesn't need [x.., it can also start with a label/immediate
+	if (strcmp(instr, VALID_INSTRUCTIONS[M_TYPE_IDX]) == 0) {
+		if (*base != '[') {
+			// In the case that it does start with a label/immediate, do special handling
+			// It can either be just a label or an expression involving a label
+			// Note that the expression could have been cut short with strtok if it was imm + 2 * ....
+			// Recombine
+
+			char* expr = (char*) malloc(sizeof(char) * strlen(base) + strlen(args) + 1);
+			// 
+			sprintf(expr, "%s%s", base, args);
+			
+			bool evald = false;
+			uint32_t imm = eval(expr, symbTable, &evald);
+
+			char immhstr[20];
+			char immlstr[14];
+			uint32_t immh, imml;
+			// If it was able to be evaled, split imm
+			if (evald) {
+				immh = (imm >> 13) & 0x7ffff;
+				imml = (imm >> 0) & 0x1fff;
+				
+				sprintf(immhstr, "%u", immh);
+				sprintf(immlstr, "%u", imml);
+			} else {
+				// If not (meaning it used an undefined label/symbol), leave it for future evaluation
+				// But keep the need to split imm
+				// TODO
+			}
+
+			char* operands[] = { xd, immhstr, NULL };
+			instr_obj_t* mvInstr = initInstrObj(sectTable->entries[3].lp, NULL, "mv", (char**) operands);
+			addInstrObj(instrStream, mvInstr);
+
+			operands[1] = "#13";
+			instr_obj_t* lslInstr = initInstrObj(sectTable->entries[3].lp+4, NULL, "lsl", (char**) operands);
+			addInstrObj(instrStream, lslInstr);
+
+			operands[1] = immlstr;
+			instr_obj_t* addInstr = initInstrObj(sectTable->entries[3].lp+8, NULL, "add", (char**) operands);
+			addInstrObj(instrStream, addInstr);
+
+			sectTable->entries[3].lp += 8; // The normal LP is incremented by 4 in main, handle the extra two instructions
+
+			return;
+		}
+		// Else, apply the general case
+	}
+
 	if (*base != '[') handleError(ERR_INVALID_SYNTAX, FATAL, "Invalid memory addressing for %s!\n", instr);
 
 	char* offsetIndex = strtok_r(NULL, " \t", &args);
