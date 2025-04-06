@@ -30,7 +30,7 @@ enum DirectiveIndex {
 };
 
 enum ImmediateSize {
-	IMM14, SIMM24, SIMM19
+	IMM14, SIMM24, SIMM19, SIMM9
 };
 
 #define TOLOWER(str) for (; *str; ++str) *str = tolower(*str)
@@ -555,7 +555,6 @@ HANDLE_INSTR(handleR) {
 
 	instr_obj_t* instrObj = initInstrObj(sectTable->entries[3].lp, NULL, instr, (char**) operands);
 	addInstrObj(instrStream, instrObj);
-	free(operands);
 }
 
 HANDLE_INSTR(handleIR) {
@@ -572,23 +571,90 @@ HANDLE_INSTR(handleIR) {
 }
 
 HANDLE_INSTR(handleM) {
+	// Memory instructions are slightly more tricky
+	// All memory ops have the following addressing modes:
+	// mem_op reg, [x]
+	// mem_op reg, [x/ir, off]
+	// mem_op reg, [x], y
 
+	// But ld has an exception:
+	// ld reg, imm
+	// Which decomposes into three instructions: mv -> lsl -> add
 
-	// instr_obj_t* instrObj = initInstrObj(sectTable->entries[3].lp, NULL, instr, args);
-	// addInstrObj(instrStream, instrObj);
+	// After getting the destination register,
+	// the way to store the possible configurations is in an array of three
+	// First will store either x/ir
+	// Second will either store off or 0xFEEDFAED
+	// Third will either store y or NULL
+
+	char* xd = strtok_r(NULL, " \t,", &args);
+	if (!xd) handleError(ERR_INVALID_SYNTAX, FATAL, "No destination register found for %x!\n", instr);
+	validateRegister(xd);
+
+	char* base = NULL;
+	char* offset = 0xFEEDFAED;
+	char* index = NULL;;
+
+	base = strtok_r(NULL, " \t,", &args);
+	if (*base != '[') handleError(ERR_INVALID_SYNTAX, FATAL, "Invalid memory addressing for %s!\n", instr);
+
+	char* offsetIndex = strtok_r(NULL, " \t", &args);
+	// offsetIndex can either be NULL if only [x]
+	// or the first part of off expression (or the entire thing as off])
+	// or the index register
+
+	if (*(base+3) == ']' || *(base+4) == ']') {
+		// The first op is [x]
+		// So offsetIndex is either NULL or contains y
+		if (offsetIndex) {
+			index = offsetIndex;
+			// Make sure nothing left
+			char* _nnull = strtok_r(NULL, " \t", &args);
+			if (_nnull) handleError(ERR_INVALID_SYNTAX, FATAL, "Invalid memory addressing for %s\n", instr);
+
+			validateRegister(index);
+		}
+	} else {
+		offset = offsetIndex;
+		// There is the offset
+		// Offset is an expression/immediate that is to start with # and ends with ]
+		// Take out ]
+		size_t offlen = strlen(offset);
+		if (*(offset+offlen-1) != ']') handleError(ERR_INVALID_SYNTAX, FATAL, "Invalid memory addressing for %s!\n", instr);
+		*(offset+offlen-1) = '\0';
+
+		validateImmediate(offset, SIMM9);
+	}
+
+	// Take out the square brackets from [x]
+	base++;
+	if (*(base+3) == '\0') *(base+2) = '\0';
+	else if (*(base+4) == '\0') *(base+3) = '\0';
+
+	validateRegister(base);
+
+	char* operands[5] = { xd, base, offset, index, NULL };
+
+	instr_obj_t* instrObj = initInstrObj(sectTable->entries[3].lp, NULL, instr, (char**) operands);
+	addInstrObj(instrStream, instrObj);
 }
 
 HANDLE_INSTR(handleBi) {
-	char* label = strtok_r(NULL, " \t", args);
+	char* label = strtok_r(NULL, " \t", &args);
 	if (!label) handleError(ERR_INVALID_SYNTAX, FATAL, "Label not found for %s!\n", instr);
 
 	if (*label == '#') handleError(ERR_INVALID_SYNTAX, FATAL, "Bad expression for %s!\n", label);
 
 	// Label can either be just a label (_HERE) or an expression involving a label
-	// Leave the evaluation until later
-	// Just make sure it is aligned to 4 bytes
+	// Make sure it is aligned to 4 bytes
+	bool canEval;
+	int32_t labelEvaled = (int32_t) eval(label, symbTable, &canEval);
+	if (labelEvaled % 4 != 0) handleError(ERR_INVALID_EXPRESSION, FATAL, "Expresion %s is not aligned to 4!\n", label);
 
-	char* operands[] = { label, NULL };
+	char offset[11];
+	sprintf(offset, "%d", labelEvaled);
+
+	char* operands[] = { offset, NULL };
 	instr_obj_t* instrObj = initInstrObj(sectTable->entries[3].lp, NULL, instr, (char**) operands);
 	addInstrObj(instrStream, instrObj);
 }
@@ -637,6 +703,6 @@ void handleInstruction(InstructionStream* instrStream, SymbolTable* symbTable, S
 	else if (index >= M_TYPE_IDX && index < Bi_TYPE_IDX) handleM(instrStream, symbTable, sectTable, instr, args);
 	else if (index >= Bi_TYPE_IDX && index < Bu_TYPE_IDX) handleBi(instrStream, symbTable, sectTable, instr, args);
 	else if (index >= Bu_TYPE_IDX && index < Bc_TYPE_IDX) handleBu(instrStream, symbTable, sectTable, instr, args);
-	else if (index >= Bc_TYPE_IDX && index < S_TYPE_IDX) {}
+	else if (index >= Bc_TYPE_IDX && index < S_TYPE_IDX) handleBc(instrStream, symbTable, sectTable, instr, args);
 	else if (index >= S_TYPE_IDX && index < F_TYPE_IDX) {}
 }

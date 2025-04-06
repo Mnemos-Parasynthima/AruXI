@@ -44,6 +44,9 @@ instr_obj_t* initInstrObj(uint32_t addr, char* source, char* instr, char** opera
 
 	for (int i = 0; i < operandsLen; i++) {
 		char* operand = operands[i];
+
+		if (operand == 0xFEEDFAED) continue;
+		
 		size_t operandLen = strlen(operand);
 		char* noperand = (char*) malloc(sizeof(char) * operandLen + 1);
 		if (!operand) handleError(ERR_MEM, FATAL, "Could not allocate memory for instruction operand!\n");
