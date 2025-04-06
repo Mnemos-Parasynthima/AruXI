@@ -103,7 +103,7 @@ int main(int argc, char const* argv[]) {
 
 
 					// Increment LP by instruction size
-					sectTable->entries[0].lp += 4;
+					sectTable->entries[3].lp += 4;
 				}
 			}
 		}
@@ -111,11 +111,18 @@ int main(int argc, char const* argv[]) {
 		read = getline(&line, &n, source);
 	}
 
+	sectTable->entries[0].size = sectTable->entries[0].lp;
+	sectTable->entries[1].size = sectTable->entries[1].lp;
+	sectTable->entries[2].size = sectTable->entries[2].lp;
+	sectTable->entries[3].size = sectTable->entries[3].lp;
+
 	// Confirms existance of text section and _init label (and marked global) at text, undefined (but referenced) symbols
 
 	displaySymbTable(symbTable);
+	displayDataTable(dataTable);
+	displaySectionTable(sectTable);
 
-	if (!sectTable->entries[0].present) handleError(ERR_NO_TEXT, FATAL, "Text section has not been defined!\n");
+	if (!sectTable->entries[3].present) handleError(ERR_NO_TEXT, FATAL, "Text section has not been defined!\n");
 
 	symb_entry_t* initLabel = getSymbEntry(symbTable, "_init");
 	if (!initLabel) handleError(ERR_NO_ENTRY, FATAL, "Entry point '_init' not found!\n");

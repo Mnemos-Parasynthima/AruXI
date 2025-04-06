@@ -18,6 +18,8 @@ typedef struct SectionTable {
 
 SectionTable* initSectionTable();
 
+void displaySectionTable(SectionTable* sectTable);
+
 void deleteSectionTable(SectionTable* sectTable);
 
 #endif

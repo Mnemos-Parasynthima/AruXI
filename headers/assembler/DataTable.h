@@ -33,7 +33,7 @@ typedef struct DataTable {
 } DataTable;
 
 typedef enum {
-	DATA_SECT = 1,
+	DATA_SECT,
 	CONST_SECT,
 	BSS_SECT
 } data_sect_type_t;
@@ -72,6 +72,8 @@ void addDataEntry(DataTable* dataTable, data_entry_t* dataEntry, data_sect_type_
  * @return The data entry
  */
 data_entry_t* getDataEntry(DataTable* dataTable, data_sect_type_t sectType, uint32_t addr);
+
+void displayDataTable(DataTable* dataTable);
 
 void deleteDataTable(DataTable* dataTable);
 
