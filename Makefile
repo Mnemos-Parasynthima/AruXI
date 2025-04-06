@@ -13,6 +13,10 @@ emu:
 kernel:
 
 
+debug:
+	(cd assembler && make $@)
+
+
 clean:
 	(cd assembler && make $@)
 	rm -f *.o

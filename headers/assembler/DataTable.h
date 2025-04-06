@@ -33,7 +33,7 @@ typedef struct DataTable {
 } DataTable;
 
 typedef enum {
-	DATA_SECT,
+	DATA_SECT = 1,
 	CONST_SECT,
 	BSS_SECT
 } data_sect_type_t;
@@ -46,13 +46,13 @@ typedef enum {
 DataTable* initDataTable();
 
 /**
- * 
- * @param type 
- * @param addr 
- * @param size 
- * @param source 
- * @param data 
- * @return 
+ * Creates a data entry for the data table with the given information.
+ * @param type The type of data: 0 for str, 1 for bytes, 2 for halfwords, 3 for words, 4 for floats
+ * @param addr The address in which the data is located at relative to its section, aka the LP
+ * @param size The total size that the data occupies in bytes
+ * @param source The original source string, used for debugging
+ * @param data The actual data itself that must be malloced
+ * @return A data entry
  */
 data_entry_t* initDataEntry(uint8_t type, uint32_t addr, uint32_t size, char* source, void* data);
 
