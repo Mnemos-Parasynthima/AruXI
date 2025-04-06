@@ -55,6 +55,7 @@ int main(int argc, char const* argv[]) {
 	if (!source) handleError(ERR_IO, FATAL, "Could not open %s!\n", infile);
 
 	// PASS 1
+
 	SymbolTable* symbTable = initSymbTable();
 	InstructionStream* instrStream = initInstrStream();
 	SectionTable* sectTable = initSectionTable();
@@ -97,10 +98,12 @@ int main(int argc, char const* argv[]) {
 				if (*tok == '.') handleDirective(symbTable, sectTable, dataTable, tok+1, saveptr);
 				else { // Assume it is an instruction
 					// Since it is assuming the line is an instruction, ensure the current section is text
-					if (sectTable->activeSection != 3) handleError(ERR_INSTR_NOT_IN_TEXT, FATAL, "Instruction `%s` is not in the text section!\n", saveptr);
+					if (sectTable->activeSection != 3) handleError(ERR_INSTR_NOT_IN_TEXT, FATAL, "Instruction `%s %s` is not in the text section!\n", tok, saveptr);
+					// Also ensure LP is aligned
+					if (sectTable->entries[3].lp % 4 != 0) handleError(ERR_MISALIGNMENT, FATAL, "Instruction not aligned!\n");
 
 					// tokenize, parse, and eval (if needed) instruction
-
+					handleInstruction(instrStream, symbTable, sectTable, tok, saveptr);
 
 					// Increment LP by instruction size
 					sectTable->entries[3].lp += 4;
@@ -121,6 +124,7 @@ int main(int argc, char const* argv[]) {
 	displaySymbTable(symbTable);
 	displayDataTable(dataTable);
 	displaySectionTable(sectTable);
+	displayInstStream(instrStream);
 
 	if (!sectTable->entries[3].present) handleError(ERR_NO_TEXT, FATAL, "Text section has not been defined!\n");
 
