@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "SymbolTable.h"
@@ -60,6 +61,34 @@ symb_entry_t* getSymbEntry(SymbolTable* symbTable, char* name) {
 	}
 
 	return NULL;
+}
+
+void displaySymbTable(SymbolTable* symbTable) {
+	printf("Symbol Table with %d entries:\n", symbTable->size);
+	for (int i = 0; i < symbTable->size; i++) {
+		symb_entry_t* entry = symbTable->entries[i];
+		uint32_t flags = entry->flags;
+		uint8_t EXPR = GET_EXPRESSION(flags);
+		uint8_t SECT = GET_SECTION(flags);
+		uint8_t TYPE = GET_TYPE(flags);
+		uint8_t LOCALITY = GET_LOCALITY(flags);
+		uint8_t REFERENCE = GET_REFERENCE(flags);
+		uint8_t DEFINED = GET_DEFINED(flags);
+		
+		printf("%s: ", entry->name);
+		if (EXPR == 0b1) printf("(%s)\t", entry->expr);
+		else printf("(%d)\t", entry->value);
+
+		char sectStr[6];
+		if (SECT == 0b00) sprintf(sectStr, "DATA");
+		else if (SECT == 0b01) sprintf(sectStr, "CONST");
+		else if (SECT == 0b10) sprintf(sectStr, "BSS");
+		else sprintf(sectStr, "TEXT");
+
+		// EXPR: (0|1); SECT: (DATA|CONST|BSS|TEXT); TYPE: (ADDR|SET); LOCALITY: (LOC|GLOB); REFERENCE: (0|1); DEFINED: (0|1)
+		printf("EXPR: %d; SECT: %s; TYPE: %s; LOCALITY: %s; REFERENCE: %d; DEFINED: %d\n", 
+			EXPR, sectStr, ((TYPE == 0b0) ? "ADDR" : "SET"), ((LOCALITY == 0b0) ? "LOC" : "GLOB"), REFERENCE, DEFINED);
+	}
 }
 
 void deleteSymbTable(SymbolTable* symbTable) {
