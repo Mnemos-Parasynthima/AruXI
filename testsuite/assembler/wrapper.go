@@ -13,21 +13,79 @@ package assemblerTests
 import "C"
 import "unsafe"
 
-func arxsmEval(expr string, symbTable *C.SymbolTable) int32 {
- cExpr := C.CString(expr)
- defer C.free(unsafe.Pointer(cExpr))
 
- var canEval C.bool
+// DataTable.c/h
 
- res := C.eval(cExpr, symbTable, &canEval)
- return int32(res)
+
+
+// evaluator.c/h
+
+func arxsmEval(expr string, symbTable *C.SymbolTable) (int32, bool) {
+	cExpr := C.CString(expr)
+	defer C.free(unsafe.Pointer(cExpr))
+ 
+	var canEval C.bool
+ 
+	res := C.eval(cExpr, symbTable, &canEval)
+	return int32(res), bool(canEval)
+ }
+
+
+// InstructionStream.c/h
+
+
+// lexer-parser.c/h
+
+
+// preprocessor.c/h
+
+func arxsmPreprocess(line string, len int64) string {
+	cLine := C.CString(line)
+	defer C.free(unsafe.Pointer(cLine))
+
+	res := C.preprocess(cLine, C.ssize_t(len))
+	return C.GoString(res)
 }
 
+// SymbolTabel.c/h
 
 func arxsmInitSymbTable() *C.SymbolTable {
 	return C.initSymbTable()
 }
 
+func arxsmInitSymbEntry(name string, expr string, value int32, flags uint32) *C.symb_entry_t {
+	cName := C.CString(name)
+	cExpr := C.CString(expr)
+	defer C.free(unsafe.Pointer(cName))
+	defer C.free(unsafe.Pointer(cExpr))
+
+	return C.initSymbEntry(cName, cExpr, C.int32_t(value), C.uint32_t(flags))
+}
+
+func arxsmAddSymbEntry(symbTable *C.SymbolTable, symbEntry *C.symb_entry_t) {
+	C.addSymbEntry(symbTable, symbEntry)
+}
+
+func arxsmGetSymbEntry(symbTable *C.SymbolTable, name string) *C.symb_entry_t {
+	cName := C.CString(name)
+	defer C.free(unsafe.Pointer(cName))
+
+	return C.getSymbEntry(symbTable, cName)
+}
+
+func arxsmDisplaySymbTable(symbTable *C.SymbolTable) {
+	C.displaySymbTable(symbTable)
+}
+
 func arxsmDeleteSymbTable(symbTable *C.SymbolTable) {
 	C.deleteSymbTable(symbTable)
 }
+
+// END
+
+const (
+	RESET = "\033[0m"
+	RED = "\033[31m"
+	GREEN = "\033[32m"
+	YELLOW = "\033[33m"
+)

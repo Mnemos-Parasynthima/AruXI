@@ -4,9 +4,16 @@ import "testing"
 
 
 func TestPreprocessor(t *testing.T) {
-	result := 4
+	input := " 	\tARU:	 \t\n"
+	expected := "ARU:"
 
-	if result != 2 {
-		t.Errorf("Expected 2, got %d", result)
+	t.Logf("%sInput string is `%s`%s", YELLOW, input, RESET)
+
+	actual := arxsmPreprocess(input, int64(len(input)))
+
+	if actual != expected {
+		t.Errorf("%sExpected: `%s`, Actual: `%s`%s", RED, expected, actual, RESET)
+	} else {
+		t.Logf("%sActual: `%s`%s", GREEN, actual, RESET)
 	}
 }
