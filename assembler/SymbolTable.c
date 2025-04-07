@@ -25,7 +25,7 @@ symb_entry_t* initSymbEntry(char* name, char* expr, int32_t value, uint32_t flag
 	symbEntry->name = (char*) malloc(sizeof(char) * nameLen + 1);
 	strcpy(symbEntry->name, name);
 
-	if (expr) symbEntry->expr = expr;
+	if (expr && GET_EXPRESSION(flags) == 1) symbEntry->expr = expr;
 	else symbEntry->value = value;
 
 	symbEntry->flags = flags;
