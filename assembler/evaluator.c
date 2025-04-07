@@ -48,6 +48,7 @@ static int32_t parse(struct Lexer* lexer, SymbolTable* symbTable, bool* canEval)
 		if (!entry || GET_DEFINED(entry->flags) == 0) {
 			// printf("Entry not available or not defined!\n");
 			if (!entry) {
+				// printf("Creating entry!\n");
 				uint32_t flags = CREATE_FLAGS(0, 0, 0, 0, 1, 0);
 				entry = initSymbEntry(tok.text, NULL, 0, flags);
 				addSymbEntry(symbTable, entry);
@@ -147,7 +148,7 @@ static void nextToken(struct Lexer* lexer) {
 		lexer->pos = end - lexer->input;
 	} else if (isalpha(*str) || *str == '_') {
 		size_t len = 0;
-		while (isalpha(str[len]) || str[len] == '_') len++;
+		while (isalnum(str[len]) || str[len] == '_') len++;
 
 		char* name = strndup(str, len);
 		lexer->curr = (token_t){ .type = SYMB, .text = name };
