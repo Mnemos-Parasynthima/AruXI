@@ -27,12 +27,12 @@ static void nextToken(struct Lexer* lexer);
 static int32_t _eval(struct Lexer* lexer, SymbolTable* symbTable, int prec, bool* canEval);
 
 static int precedence(const char* op) {
-	if (strcmp(op, "|") == 0) return 8;
-	if (strcmp(op, "^") == 0) return 7;
-	if (strcmp(op, "&") == 0) return 6;
-	if (strcmp(op, "<<") == 0 || strcmp(op, ">>") == 0) return 5;
-	if (strcmp(op, "+") == 0 || strcmp(op, "-") == 0) return 4;
-	if (strcmp(op, "*") == 0 || strcmp(op, "/") == 0) return 3;
+	if (strcmp(op, "|") == 0) return 1;
+	if (strcmp(op, "^") == 0) return 2;
+	if (strcmp(op, "&") == 0) return 3;
+	if (strcmp(op, "<<") == 0 || strcmp(op, ">>") == 0) return 4;
+	if (strcmp(op, "+") == 0 || strcmp(op, "-") == 0) return 5;
+	if (strcmp(op, "*") == 0 || strcmp(op, "/") == 0) return 6;
 	return -1;
 }
 
@@ -43,8 +43,10 @@ static int32_t parse(struct Lexer* lexer, SymbolTable* symbTable, bool* canEval)
 		nextToken(lexer);
 		return tok.val;
 	} else if (tok.type == SYMB) {
+		// printf("Getting symbol %s\n", tok.text);
 		symb_entry_t* entry = getSymbEntry(symbTable, tok.text);
 		if (!entry || GET_DEFINED(entry->flags) == 0) {
+			// printf("Entry not available or not defined!\n");
 			if (!entry) {
 				uint32_t flags = CREATE_FLAGS(0, 0, 0, 0, 1, 0);
 				entry = initSymbEntry(tok.text, NULL, 0, flags);
@@ -55,14 +57,17 @@ static int32_t parse(struct Lexer* lexer, SymbolTable* symbTable, bool* canEval)
 			return -1;
 		}
 
+		// printf("Entry found!\n");
 		SET_REFERENCE(entry->flags);
 
 		int32_t res;
 		if (GET_EXPRESSION(entry->flags)) {
+			// printf("Symbol is an expression!\n");
 			struct Lexer subLexer = { .input = entry->expr, .pos = 0 };
 			nextToken(&subLexer);
 			res = _eval(&subLexer, symbTable, 0, canEval);
 		} else {
+			// printf("Symbol is a value (%d)!\n", entry->value);
 			*canEval = true;
 			res = entry->value;
 		}
@@ -96,12 +101,14 @@ static int32_t _eval(struct Lexer* lexer, SymbolTable* symbTable, int prec, bool
 	int32_t left = parse(lexer, symbTable, canEval);
 	if (!*canEval) return left;
 
-	while (lexer->curr.type == OP && precedence(lexer->curr.text) >= prec) {
+	while (lexer->curr.type == OP && precedence(lexer->curr.text) > prec) {
 		char* op = lexer->curr.text;
 		int opPrec = precedence(op);
 		nextToken(lexer);
-		int32_t right = _eval(lexer, symbTable, opPrec+1, canEval);
+		int32_t right = _eval(lexer, symbTable, opPrec, canEval);
 		if (!*canEval) return right;
+
+		// printf("Left: %d; Right: %d\n", left, right);
 
 		if (strcmp(op, "+") == 0) left += right;
 		else if (strcmp(op, "-") == 0) left -= right;
@@ -112,6 +119,8 @@ static int32_t _eval(struct Lexer* lexer, SymbolTable* symbTable, int prec, bool
 		else if (strcmp(op, "&") == 0) left &= right;
 		else if (strcmp(op, "^") == 0) left ^= right;
 		else if (strcmp(op, "|") == 0) left |= right;
+
+		// printf("Left: %d\n", left);
 	}
 	
 	return left;
@@ -160,14 +169,14 @@ static void nextToken(struct Lexer* lexer) {
 }
 
 int32_t eval(const char* expr, SymbolTable* symbTable, bool* canEval) {
-	printf("\t\tEVALUATING (%s)\n", expr);
+	// printf("\t\tEVALUATING (%s)\n", expr);
 
 	struct Lexer lexer = { .input = expr, .pos = 0 };
 	nextToken(&lexer);
 	int32_t res = _eval(&lexer, symbTable, 0, canEval);
 
-	if (*canEval) printf("\t\t \x1b[32m ABLE TO EVALUATE TO %d \x1b[0m\n", res);
-	else printf("\t\t \x1b[31m UNABLE TO EVALUATE \x1b[0m\n");
+	// if (*canEval) printf("\t\t \x1b[32m ABLE TO EVALUATE TO %d \x1b[0m\n", res);
+	// else printf("\t\t \x1b[31m UNABLE TO EVALUATE \x1b[0m\n");
 
 	return res;
 }
