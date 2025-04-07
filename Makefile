@@ -16,8 +16,15 @@ kernel:
 debug:
 	(cd assembler && make $@)
 
+test:
+	(cd assembler && make $@)
+
+runtest:
+	(cd testsuite/assembler && go test)
+
 
 clean:
 	(cd assembler && make $@)
 	rm -f *.o
+	rm -f *.so
 	rm -f out/arxsm
