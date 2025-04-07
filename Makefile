@@ -16,10 +16,10 @@ kernel:
 debug:
 	(cd assembler && make $@)
 
-test:
+lib:
 	(cd assembler && make $@)
 
-runtest:
+test:
 	(cd testsuite/assembler && go test)
 
 

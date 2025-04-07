@@ -18,7 +18,7 @@ arxsm: $(OBJS)
 debug: CFLAGS += -g -O0
 debug: arxsm
 
-test: $(SRCS)
+lib: $(SRCS)
 	$(CC) -fPIC -shared -o ../out/libarxsm.so $(SRCS) $(INCLUDES)
 
 clean:
