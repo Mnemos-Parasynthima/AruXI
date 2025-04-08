@@ -125,7 +125,7 @@ int main(int argc, char const* argv[]) {
 	displaySymbTable(symbTable);
 	displayDataTable(dataTable);
 	displaySectionTable(sectTable);
-	displayInstStream(instrStream);
+	displayInstrStream(instrStream);
 
 	if (!sectTable->entries[3].present) handleError(ERR_NO_TEXT, FATAL, "Text section has not been defined!\n");
 

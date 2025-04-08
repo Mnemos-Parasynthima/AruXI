@@ -13,29 +13,85 @@ package assemblerTests
 import "C"
 import "unsafe"
 
-
 // DataTable.c/h
 
+func arxsmInitDataTable() *C.DataTable {
+	return C.initDataTable()
+}
 
+func arxsmDisplayDataTable(dataTable *C.DataTable) {
+	C.displayDataTable(dataTable)
+}
+
+func arxsmDeleteDataTable(dataTable *C.DataTable) {
+	C.deleteDataTable(dataTable)
+}
 
 // evaluator.c/h
 
 func arxsmEval(expr string, symbTable *C.SymbolTable) (int32, bool) {
 	cExpr := C.CString(expr)
 	defer C.free(unsafe.Pointer(cExpr))
- 
+
 	var canEval C.bool = true
 
 	res := C.eval(cExpr, symbTable, &canEval)
 	return int32(res), bool(canEval)
- }
-
+}
 
 // InstructionStream.c/h
 
+func arxsmInitInstrStream() *C.InstructionStream {
+	return C.initInstrStream()
+}
+
+func arxsmDisplayInstrStream(instrStream *C.InstructionStream) {
+	C.displayInstrStream(instrStream)
+}
+
+func arxsmDeleteInstrStream(instrStream *C.InstructionStream) {
+	C.deleteInstrStream(instrStream)
+}
 
 // lexer-parser.c/h
 
+func arxsmHandleLabel(symbTable *C.SymbolTable, sectTable *C.SectionTable, tok string, save string) (string, string) {
+	cTok := C.CString(tok)
+	cSave := C.CString(save)
+
+	defer C.free(unsafe.Pointer(cTok))
+	defer C.free(unsafe.Pointer(cSave))
+
+	C.handleLabel(symbTable, sectTable, &cTok, &cSave)
+
+	return C.GoString(cTok), C.GoString(cSave)
+}
+
+func arxsmHandleDirective(symbTable *C.SymbolTable, sectTable *C.SectionTable, dataTable *C.DataTable, directive string, args string) {
+	cDirective := C.CString(directive)
+	cArgs := C.CString(args)
+
+	defer C.free(unsafe.Pointer(cDirective))
+	// All other handlers that use args create new data
+	// Except in setDirective where after strtok on args for the second time for the expr
+	// `expr` is set directly to the symbol entry (see comment on arxsmInitSymbEntry())
+	// So args cannot be freed, although changes will be made to make expr be allocd
+	// defer C.free(unsafe.Pointer(cArgs))
+
+	C.handleDirective(symbTable, sectTable, dataTable, cDirective, cArgs)
+}
+
+func arxsmHandleInstruction(instrStream *C.InstructionStream, symbTable *C.SymbolTable, sectTable *C.SectionTable, instr string, args string) {
+	cInstr := C.CString(instr)
+	cArgs := C.CString(args)
+
+	defer C.free(unsafe.Pointer(cInstr))
+	// I will be assuming that anything in args will be allocated by sub-handlers
+	// Meaning I am assuming freeing will be save
+	defer C.free(unsafe.Pointer(cArgs))
+
+	C.handleInstruction(instrStream, symbTable, sectTable, cInstr, cArgs)
+}
 
 // preprocessor.c/h
 

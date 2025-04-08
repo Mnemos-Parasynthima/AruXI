@@ -75,7 +75,7 @@ void addInstrObj(InstructionStream* instrStream, instr_obj_t* instrObj) {
 	instrStream->size++;	
 }
 
-void displayInstStream(InstructionStream* instrStream) {
+void displayInstrStream(InstructionStream* instrStream) {
 	printf("Instruction Stream (%d instructions):\n", instrStream->size);
 	for (int i = 0; i < instrStream->size; i++) {
 		instr_obj_t* instrObj = instrStream->instructions[i];

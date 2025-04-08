@@ -27,7 +27,7 @@ void addInstrObj(InstructionStream* instrStream, instr_obj_t* instrObj);
 
 // instr_obj_t* getInstrObj();
 
-void displayInstStream(InstructionStream* instrStream);
+void displayInstrStream(InstructionStream* instrStream);
 
 void deleteInstrStream(InstructionStream* instrStream);
 
