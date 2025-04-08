@@ -26,15 +26,25 @@ char* preprocess(char* line, ssize_t len) {
 
 	// Start from the right and go through any whitespace left-wise
 	char* end = (line + len) - 1;
-	if (*end == '\n') end-=1;
+	if (*end == '\n') end -= 1;
 	while (end > start && isblank(*end)) end--;
 
-	// There may be comments at the end, start search at (new)beginning
+	// There may be comments at the end, start search at (new) beginning
 	char* commentPos = start;
 	while (*commentPos != COMMENT && commentPos <= end) commentPos++;
 
+	// There may be some space between the last proper "token" and the start of the comment
+	// Like "add x0, x1, x2  % comment"
+	// Backtrack to remove it
+	end = commentPos;
+
+	if (*end == COMMENT && isblank(*(end-1))) {
+		end--;
+		while (end > start && isblank(*end) && isblank(*(end-1))) end--;
+	}
+
 	// New string for removed whitespace and comments
-	size_t newSize = commentPos - start;
+	size_t newSize = end - start;
 	char* trimmed = (char*) malloc(newSize + 1);
 	if (!trimmed) handleError(ERR_MEM, FATAL, "Could not allocate memory for trimmed string!\n");
 	memcpy(trimmed, start, newSize);
