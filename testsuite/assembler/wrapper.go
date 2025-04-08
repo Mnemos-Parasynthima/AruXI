@@ -24,8 +24,8 @@ func arxsmEval(expr string, symbTable *C.SymbolTable) (int32, bool) {
 	cExpr := C.CString(expr)
 	defer C.free(unsafe.Pointer(cExpr))
  
-	var canEval C.bool
- 
+	var canEval C.bool = true
+
 	res := C.eval(cExpr, symbTable, &canEval)
 	return int32(res), bool(canEval)
  }
@@ -57,7 +57,9 @@ func arxsmInitSymbEntry(name string, expr string, value int32, flags uint32) *C.
 	cName := C.CString(name)
 	cExpr := C.CString(expr)
 	defer C.free(unsafe.Pointer(cName))
-	defer C.free(unsafe.Pointer(cExpr))
+	// Needed to comment it out as `initSymbEntry` assumes `expr` has been allocd and uses the pointer passed in
+	// Keeping this would free it, leading to segfaults when later attempts on accessing `expr`
+	// defer C.free(unsafe.Pointer(cExpr))
 
 	return C.initSymbEntry(cName, cExpr, C.int32_t(value), C.uint32_t(flags))
 }
