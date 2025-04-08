@@ -8,7 +8,9 @@ The organization is as follows:
 	- All functions, structs, and other objects in `headers/assembler/*.h` are imported and have a Go function
 	wrapper for each c function.
 - `eval_test.go`:
-	- Tests the `eval()` function individually. It also ensures proper entries are created and updated.
+	- Tests the `eval()` function. It also ensures proper entries are created and updated.
+- `preprocessor_test.go`:
+	- Tests the `preprocess()` function.
 
 ## Running Test files
 
