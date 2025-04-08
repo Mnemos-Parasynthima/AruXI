@@ -39,37 +39,30 @@ static int precedence(const char* op) {
 static int32_t parse(struct Lexer* lexer, SymbolTable* symbTable, bool* canEval) {
 	token_t tok = lexer->curr;
 	if (tok.type == INT) {
-		*canEval = true;
 		nextToken(lexer);
 		return tok.val;
 	} else if (tok.type == SYMB) {
-		// printf("Getting symbol %s\n", tok.text);
 		symb_entry_t* entry = getSymbEntry(symbTable, tok.text);
 		if (!entry || GET_DEFINED(entry->flags) == 0) {
-			// printf("Entry not available or not defined!\n");
 			if (!entry) {
-				// printf("Creating entry!\n");
 				uint32_t flags = CREATE_FLAGS(0, 0, 0, 0, 1, 0);
 				entry = initSymbEntry(tok.text, NULL, 0, flags);
 				addSymbEntry(symbTable, entry);
 			}
 
 			*canEval = false;
+			nextToken(lexer);
 			return -1;
 		}
 
-		// printf("Entry found!\n");
 		SET_REFERENCE(entry->flags);
 
 		int32_t res;
 		if (GET_EXPRESSION(entry->flags)) {
-			// printf("Symbol is an expression!\n");
 			struct Lexer subLexer = { .input = entry->expr, .pos = 0 };
 			nextToken(&subLexer);
 			res = _eval(&subLexer, symbTable, 0, canEval);
 		} else {
-			// printf("Symbol is a value (%d)!\n", entry->value);
-			*canEval = true;
 			res = entry->value;
 		}
 		nextToken(lexer);
@@ -100,16 +93,14 @@ static int32_t parse(struct Lexer* lexer, SymbolTable* symbTable, bool* canEval)
 
 static int32_t _eval(struct Lexer* lexer, SymbolTable* symbTable, int prec, bool* canEval) {
 	int32_t left = parse(lexer, symbTable, canEval);
-	if (!*canEval) return left;
 
 	while (lexer->curr.type == OP && precedence(lexer->curr.text) > prec) {
 		char* op = lexer->curr.text;
 		int opPrec = precedence(op);
 		nextToken(lexer);
 		int32_t right = _eval(lexer, symbTable, opPrec, canEval);
-		if (!*canEval) return right;
 
-		// printf("Left: %d; Right: %d\n", left, right);
+		if (!*canEval) continue;
 
 		if (strcmp(op, "+") == 0) left += right;
 		else if (strcmp(op, "-") == 0) left -= right;
@@ -120,8 +111,6 @@ static int32_t _eval(struct Lexer* lexer, SymbolTable* symbTable, int prec, bool
 		else if (strcmp(op, "&") == 0) left &= right;
 		else if (strcmp(op, "^") == 0) left ^= right;
 		else if (strcmp(op, "|") == 0) left |= right;
-
-		// printf("Left: %d\n", left);
 	}
 	
 	return left;
@@ -139,7 +128,12 @@ static void nextToken(struct Lexer* lexer) {
 	if (isdigit(*str) || (*str == '0' && (str[1] == 'x' || str[1] == 'b'))) {
 		int base = 10;
 		if (str[1] == 'x') base = 16;
-		else if (str[1] == 'b') base = 2;
+		else if (str[1] == 'b') {
+			base = 2;
+			// strtol doesn't know "0b" is for binary so it reads "b" and stops
+			// So by increase str by 2, it gets position to the digit after "b"
+			str += 2;
+		}
 
 		char* end;
 		int32_t val = strtol(str, &end, base);
