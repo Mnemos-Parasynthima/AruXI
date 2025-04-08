@@ -96,7 +96,7 @@ static void setDirective(SymbolTable* symbTable, char* args, uint8_t activeSecti
 	symb_entry_t* entry = getSymbEntry(symbTable, symbol);
 	if (entry && GET_DEFINED(entry->flags) == 0b1) handleError(ERR_REDEFINED, FATAL, "Symbol %s has already been defined!\n", symbol);
 
-	bool canEval = false;
+	bool canEval = true;
 	int32_t res = eval(expr, symbTable, &canEval);
 	if (!canEval) { 
 		// The expression could not be evaluated because it references an undefined (as of now) symbol
@@ -338,7 +338,7 @@ static void zeroDirective(SectionTable* sectTable, DataTable* dataTable, SymbolT
 	char* size = strtok(NULL, " \t");
 
 	void* data = NULL;
-	bool canEval = false;
+	bool canEval = true;
 	int32_t len = eval(expr, symbTable, &canEval);
 	// If it cannot be evaluated, leave it NULL and for pass 2 to complete it
 	if (canEval) {
@@ -608,7 +608,7 @@ HANDLE_INSTR(handleM) {
 			// 
 			sprintf(expr, "%s%s", base, args);
 			
-			bool evald = false;
+			bool evald = true;
 			uint32_t imm = eval(expr, symbTable, &evald);
 
 			char immhstr[20];
@@ -697,7 +697,7 @@ HANDLE_INSTR(handleBi) {
 
 	// Label can either be just a label (_HERE) or an expression involving a label
 	// Make sure it is aligned to 4 bytes
-	bool canEval;
+	bool canEval = true;
 	int32_t labelEvaled = (int32_t) eval(label, symbTable, &canEval);
 	if (labelEvaled % 4 != 0) handleError(ERR_INVALID_EXPRESSION, FATAL, "Expresion %s is not aligned to 4!\n", label);
 

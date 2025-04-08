@@ -21,7 +21,7 @@ InstructionStream* initInstrStream() {
 }
 
 instr_obj_t* initInstrObj(uint32_t addr, char* source, char* instr, char** operands) {
-	printf("Creating instruction object for %s\n", instr);
+	printf("\tCreating instruction object for %s\n", instr);
 
 	instr_obj_t* instrObj = (instr_obj_t*) malloc(sizeof(instr_obj_t));
 	if (!instrObj) handleError(ERR_MEM, FATAL, "Could not allocate memory for instruction object!\n");
@@ -46,7 +46,7 @@ instr_obj_t* initInstrObj(uint32_t addr, char* source, char* instr, char** opera
 		char* operand = operands[i];
 
 		if (operand == 0xFEEDFAED) continue;
-		
+
 		size_t operandLen = strlen(operand);
 		char* noperand = (char*) malloc(sizeof(char) * operandLen + 1);
 		if (!operand) handleError(ERR_MEM, FATAL, "Could not allocate memory for instruction operand!\n");

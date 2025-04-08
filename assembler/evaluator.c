@@ -131,7 +131,7 @@ static void nextToken(struct Lexer* lexer) {
 		else if (str[1] == 'b') {
 			base = 2;
 			// strtol doesn't know "0b" is for binary so it reads "b" and stops
-			// So by increase str by 2, it gets position to the digit after "b"
+			// So by increasing str by 2, it gets positioned to the digit after "b"
 			str += 2;
 		}
 

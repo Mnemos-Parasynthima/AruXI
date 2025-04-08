@@ -60,7 +60,7 @@ int main(int argc, char const* argv[]) {
 	InstructionStream* instrStream = initInstrStream();
 	SectionTable* sectTable = initSectionTable();
 	DataTable* dataTable = initDataTable();
-	
+
 
 	char* line = NULL;
 	size_t n;
@@ -121,6 +121,7 @@ int main(int argc, char const* argv[]) {
 
 	// Confirms existance of text section and _init label (and marked global) at text, undefined (but referenced) symbols
 
+	printf("\n");
 	displaySymbTable(symbTable);
 	displayDataTable(dataTable);
 	displaySectionTable(sectTable);
