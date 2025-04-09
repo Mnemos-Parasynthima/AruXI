@@ -8,6 +8,7 @@ package assemblerTests
 #include "../../headers/assembler/InstructionStream.h"
 #include "../../headers/assembler/lexer-parser.h"
 #include "../../headers/assembler/preprocessor.h"
+#include "../../headers/assembler/SectionTable.h"
 #include "../../headers/assembler/SymbolTable.h"
 */
 import "C"
@@ -101,6 +102,20 @@ func arxsmPreprocess(line string, len int64) string {
 
 	res := C.preprocess(cLine, C.ssize_t(len))
 	return C.GoString(res)
+}
+
+// SectionTable.c/h
+
+func arxsmInitSectionTable() *C.SectionTable {
+	return C.initSectionTable()
+}
+
+func arxsmDisplaySectionTable(sectTable *C.SectionTable) {
+	C.displaySectionTable(sectTable)
+}
+
+func arxsmDeleteSectionTable(sectTable *C.SectionTable) {
+	C.deleteSectionTable(sectTable)
 }
 
 // SymbolTabel.c/h
