@@ -13,22 +13,22 @@
 #include "preprocessor.h"
 #include "lexer-parser.h"
 #include "evaluator.h"
-
+#include "encoder.h"
 
 
 static void resolveSymbols(SymbolTable* symbTable) {
-	printf("Resolving symbols!\n");
+	// printf("Resolving symbols!\n");
 
 	for (int i = 0; i < symbTable->size; i++) {
 		symb_entry_t* entry = symbTable->entries[i];
 		// Resolve when an expression
 		if (GET_EXPRESSION(entry->flags) == 0b1) {
 			char* expr = entry->expr;
-			printf("Resolving (%s)\n", expr);
+			// printf("Resolving (%s)\n", expr);
 
 			bool canEval = true;
 			int32_t value = eval(expr, symbTable, &canEval);
-			printf("Resolved to %d\n", value);
+			// printf("Resolved to %d\n", value);
 
 			// canEval needs to be true always
 			if (!canEval) handleError(ERR_INVALID_EXPRESSION, FATAL, "Could not evaluate symbol %s for the last pass!\n", entry->name);
@@ -41,9 +41,8 @@ static void resolveSymbols(SymbolTable* symbTable) {
 
 
 static void completeData(DataTable* dataTable, SymbolTable* symbTable) {
-	printf("Completing data!\n");
-	// .byte, .hword, and .word are the only ones that left it blank
-	// place in `source`
+	// .byte, .hword, and .word are the only ones that left `data blank
+	// placed in `source`
 	// To determine if the data entry is to be completed, either `data` can be checked if NULL
 	// or `type`
 
@@ -52,7 +51,6 @@ static void completeData(DataTable* dataTable, SymbolTable* symbTable) {
 
 		if (!entry->data._data) {
 			char* srcData = entry->source;
-			printf("Completing (%s)\n", srcData);
 			// data remains as the source, that is like "0xff, 0x0, 0x10"
 
 			// `strtok` can either be on `source` itself, but it will "ruin" it, thus not able to see the source later on
@@ -67,7 +65,7 @@ static void completeData(DataTable* dataTable, SymbolTable* symbTable) {
 			char* saveptr = NULL;
 			char* dataI = strtok_r(temp, ",", &saveptr);
 			while (dataI) {
-				printf("Evaluating (%s)\n", dataI);
+				// printf("Evaluating (%s)\n", dataI);
 				bool canEval = true;
 				uint32_t value = eval(dataI, symbTable, &canEval);
 
@@ -77,17 +75,17 @@ static void completeData(DataTable* dataTable, SymbolTable* symbTable) {
 				// Depending on the type, make sure it conforms to size
 				switch (entry->type)	{
 					case 1: // byte
-						if ((value & 0xff00UL) != 0x00) handleError(ERR_INVALID_SIZE, FATAL, "Expression %s exceeds allowed size for byte!\n", dataI);
+						if ((value & 0xff00L) != 0x00) handleError(ERR_INVALID_SIZE, FATAL, "Expression %s exceeds allowed size for byte!\n", dataI);
 						uint8_t* bytedata = (uint8_t*) data;
 						bytedata[i] = (uint8_t) value;
 						break;
 					case 2: // halfwords
-						if ((value & 0xff0000UL) != 0x00) handleError(ERR_INVALID_SIZE, FATAL, "Expression %s exceeds allowed size for halfword!\n", dataI);
+						if ((value & 0xff0000L) != 0x00) handleError(ERR_INVALID_SIZE, FATAL, "Expression %s exceeds allowed size for halfword!\n", dataI);
 						uint16_t* hworddata = (uint16_t*) data;
 						hworddata[i] = (uint16_t) value;
 						break;
 					case 3: //words
-						if ((value & 0xff00000000UL) != 0x00) handleError(ERR_INVALID_SIZE, FATAL, "Expression %s exceeds allowed size for word!\n", dataI);
+						if ((value & 0xff00000000L) != 0x00) handleError(ERR_INVALID_SIZE, FATAL, "Expression %s exceeds allowed size for word!\n", dataI);
 						uint32_t* worddata = (uint32_t*) data;
 						worddata[i] = value;
 						break;
@@ -104,13 +102,11 @@ static void completeData(DataTable* dataTable, SymbolTable* symbTable) {
 		}
 	}
 
-	printf("Completing const!\n");
 	for (int i = 0; i < dataTable->cSize; i++) {
 		data_entry_t* entry = dataTable->constEntries[i];
 
 		if (!entry->data._data) {
 			char* srcData = entry->source;
-			printf("Completing (%s)\n", srcData);
 			// data remains as the source, that is like "0xff, 0x0, 0x10"
 
 			// `strtok` can either be on `source` itself, but it will "ruin" it, thus not able to see the source later on
@@ -126,7 +122,6 @@ static void completeData(DataTable* dataTable, SymbolTable* symbTable) {
 			char* dataI = strtok_r(temp, " \t,", &saveptr);
 			while (dataI) {
 				bool canEval = true;
-				printf("Evaluating (%s)\n", dataI);
 				uint32_t value = eval(dataI, symbTable, &canEval);
 
 				// Make sure it is evaluated
@@ -285,7 +280,7 @@ int main(int argc, char const* argv[]) {
 	displaySymbTable(symbTable);
 	displayDataTable(dataTable);
 	displaySectionTable(sectTable);
-	displayInstrStream(instrStream);
+	// displayInstrStream(instrStream, false);
 	printf("\n");
 	
 	// Confirms existence of text section and _init label (and marked global) at text, undefined (but referenced) symbols
@@ -309,8 +304,10 @@ int main(int argc, char const* argv[]) {
 	resolveSymbols(symbTable);
 	completeData(dataTable, symbTable);
 
-	
+	encode(instrStream, symbTable);
 
+	printf("\n");
+	displayInstrStream(instrStream, true);
 
 
 	deleteSymbTable(symbTable);
