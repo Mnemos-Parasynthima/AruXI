@@ -42,8 +42,10 @@ static int32_t parse(struct Lexer* lexer, SymbolTable* symbTable, bool* canEval)
 		nextToken(lexer);
 		return tok.val;
 	} else if (tok.type == SYMB) {
+		// printf("Looking for symbol (%s)\n", tok.text);
 		symb_entry_t* entry = getSymbEntry(symbTable, tok.text);
 		if (!entry || GET_DEFINED(entry->flags) == 0) {
+			// printf("Symbol not found or defined!\n");
 			if (!entry) {
 				uint32_t flags = CREATE_FLAGS(0, 0, 0, 0, 1, 0);
 				entry = initSymbEntry(tok.text, NULL, 0, flags);
@@ -65,6 +67,7 @@ static int32_t parse(struct Lexer* lexer, SymbolTable* symbTable, bool* canEval)
 		} else {
 			res = entry->value;
 		}
+		// printf("Symbol with value of %d\n", res);
 		nextToken(lexer);
 		return res;
 	} else if (tok.type == LPAREN) {
@@ -140,9 +143,9 @@ static void nextToken(struct Lexer* lexer) {
 
 		lexer->curr = (token_t){ .type = INT, .val = val };
 		lexer->pos = end - lexer->input;
-	} else if (isalpha(*str) || *str == '_') {
+	} else if (isalpha(*str) || *str == '_' || *str == '@') {
 		size_t len = 0;
-		while (isalnum(str[len]) || str[len] == '_') len++;
+		while (isalnum(str[len]) || str[len] == '_' || str[len] == '@') len++;
 
 		char* name = strndup(str, len);
 		lexer->curr = (token_t){ .type = SYMB, .text = name };

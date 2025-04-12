@@ -15,6 +15,7 @@ typedef struct DataEntry {
 		uint16_t* hwords;
 		uint32_t* words;
 		float* floats;
+		void* _data;
 	} data;
 } data_entry_t;
 
