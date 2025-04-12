@@ -82,6 +82,7 @@ func TestHandleLabel(t *testing.T) {
 	})
 
 	// @0x4 .string "1234321" % last byte is null
+	sectTable.entries[0].lp += 12;
 
 	// .text
 	sectTable.activeSection = 3
@@ -109,7 +110,7 @@ func TestHandleLabel(t *testing.T) {
 			entry := arxsmGetSymbEntry(symbTable, tok)
 
 			if entry.anon0[0] != byte(expectedAddr) {
-				t.Errorf("%sExpected address of %s: %d, Actual address: %d%s", RED, tok, expectedAddr, entry.anon0[0], RESET)
+				t.Errorf("%sExpected address of %s: 0x%x, Actual address: 0x%x%s", RED, tok, expectedAddr, entry.anon0[0], RESET)
 			} else {
 				// Check all the flags
 				expectedFlags := 0b00110111

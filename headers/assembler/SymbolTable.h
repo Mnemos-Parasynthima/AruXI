@@ -39,7 +39,7 @@ typedef struct SymbolTable {
 #define GET_REFERENCE(flags) ((flags>>1) & 0b1)
 #define GET_DEFINED(flags) ((flags>>0) & 0b1)
 
-#define SET_EXPRESSION(flags) (flags &= (0 << 7)) // Sets the expression flag to 0
+#define SET_EXPRESSION(flags) (flags &= ~(1 << 7)) // Sets the expression flag to 0
 #define SET_LOCALITY(flags) (flags |= (1 << 2)) // Sets the locality flag to 1 for global
 #define SET_REFERENCE(flags) (flags |= (1 << 1)) // Sets referenced
 #define SET_DEFINED(flags) (flags |= (1 << 0))
