@@ -180,9 +180,11 @@ static void globDirective(SymbolTable* symbTable, char* args, uint8_t activeSect
 static void stringDirective(SectionTable* sectTable, DataTable* dataTable, char* args) {
 	validateSection(STRING, sectTable->activeSection);
 
-	// args should be the string itself
-	char* str = args;
+	// args should be the string itself including the two "
+	char* str = args+1; // skip the first "
 	size_t strLen = strlen(str);
+	*(str + strLen - 1) = '\0'; // replace last "
+	strLen--;	
 
 	char* data = (char*) malloc(sizeof(char) * strLen + 1);
 	if (!data) handleError(ERR_MEM, FATAL, "Could not allocate memory for string data!\n");
@@ -478,7 +480,7 @@ static int validateInstruction(char* instr) {
 static void validateRegister(char* reg) {
 	int size = sizeof(VALID_REGISTERS) / sizeof(char*);
 	for (int i = 0; i < size; i++) {
-		if (strcmp(VALID_REGISTERS[i], reg) == 0) return;
+		if (strcasecmp(VALID_REGISTERS[i], reg) == 0) return;
 	}
 
 	handleError(ERR_INVALID_REGISTER, FATAL, "Register %s is not a valid register!\n", reg);
