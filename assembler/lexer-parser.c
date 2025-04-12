@@ -57,6 +57,8 @@ static void validateSection(enum DirectiveIndex directiveType, uint8_t activeSec
 		case STRING: case BYTE: case HWORD: case WORD: case FLOAT: case FILL:
 			if (activeSection == 2) {
 				handleError(ERR_DIRECTIVE_NOT_ALLOWED, FATAL, "Directive .%s is not allowed for bss section!\n", VALID_DIRECTIVES[directiveType]);
+			} else if (activeSection == 3) {
+				handleError(ERR_DIRECTIVE_NOT_ALLOWED, FATAL, "Directive .%s is not allowed for text section!\n", VALID_DIRECTIVES[directiveType]);
 			}
 			break;
 		default: break;
@@ -74,9 +76,9 @@ static void setDirective(SymbolTable* symbTable, char* args, uint8_t activeSecti
 	// args only provides all other tokens/strings after .set
 	// ensure at least two left: the symbol and an expression
 	char* symbol = strtok_r(NULL, " \t,", &args);
-	char* expr = strtok_r(NULL, " \t", &args);
+	char* expr = strtok_r(NULL, ",", &args);
 
-	if (!expr) handleError(ERR_INVALID_SYNTAX, FATAL, "Operands for set %s not found!\n", symbol);
+	if (!expr) handleError(ERR_INVALID_SYNTAX, FATAL, "Expression for set %s not found!\n", symbol);
 
 	// Must be checked to ensure propery synax of .set [symb], [expr]
 	
@@ -90,6 +92,8 @@ static void setDirective(SymbolTable* symbTable, char* args, uint8_t activeSecti
 	// .set as
 
 	// if (*comma != ',') handleError(ERR_INVALID_SYNTAX, FATAL, "Invalid syntax for set directive on symbol %s\n", symbol);
+	char* nnull = strtok_r(NULL, " \t,", &args);
+	if (nnull) handleError(ERR_INVALID_SYNTAX, FATAL, "Invalid syntax for set directive on symbol %s\n", symbol);
 
 	// Make sure the symbol has not been set/defined before
 	// It is okay than an entry has been created as it could have been referenced earlier
@@ -101,7 +105,7 @@ static void setDirective(SymbolTable* symbTable, char* args, uint8_t activeSecti
 	if (!canEval) { 
 		// The expression could not be evaluated because it references an undefined (as of now) symbol
 		// Note that res cannot be used as an indicator as the expression can eval to a negative number
-		
+
 		// If this symbol was referenced before, an entry exists, update it
 		if (entry) {
 			entry->expr = expr;
@@ -127,6 +131,7 @@ static void setDirective(SymbolTable* symbTable, char* args, uint8_t activeSecti
 		if (entry) {
 			entry->expr = NULL;
 			entry->value = res;
+
 			SET_EXPRESSION(entry->flags); // ensure expression flag is set to 0 since it no longer holds one
 
 			uint32_t mask = ~(0b11 << 4); // update section defined in 
@@ -163,6 +168,7 @@ static void globDirective(SymbolTable* symbTable, char* args, uint8_t activeSect
 
 	if (entry) { // entry exists, update locality
 		SET_LOCALITY(entry->flags);
+		SET_REFERENCE(entry->flags);
 	} else { //entry does not exist, new entry
 		uint32_t flags = CREATE_FLAGS(0, activeSection, 0, 1, 1, 0);
 
@@ -301,13 +307,13 @@ static void floatDirective(SectionTable* sectTable, DataTable* dataTable, char* 
 
 		data[i] = _float;
 		dataLen++;
+		i++;
 
 		tok = strtok(NULL, " \t,");
 	}
 	free(temp);
-
-	data_entry_t* entry = initDataEntry(4, sectTable->entries[sectTable->activeSection].lp, dataLen * 32, args, data);
-	sectTable->entries[sectTable->activeSection].lp += (dataLen*32);
+	data_entry_t* entry = initDataEntry(4, sectTable->entries[sectTable->activeSection].lp, dataLen * 4, args, data);
+	sectTable->entries[sectTable->activeSection].lp += (dataLen*4);
 	addDataEntry(dataTable, entry, (data_sect_type_t) sectTable->activeSection);
 }
 
@@ -362,7 +368,7 @@ static void alignDirective(SectionTable* sectTable, DataTable* dataTable, char* 
 
 void handleDirective(SymbolTable* symbTable, SectionTable* sectTable, DataTable* dataTable, char* directive, char* args) {
 	printf("\tHandling directive (%s) with args (%s)\n", directive, args);
-	
+
 	char* temp = directive;
 	TOLOWER(temp);
 	int index = validateDirective(directive);
