@@ -45,7 +45,10 @@ instr_obj_t* initInstrObj(uint32_t addr, char* source, char* instr, char** opera
 	for (int i = 0; i < operandsLen; i++) {
 		char* operand = operands[i];
 
-		if (operand == 0xFEEDFAED) continue;
+		if (operand == 0xFEEDFAED) {
+			instrObj->operands[i] = 0xFEEDFAED;
+			continue;
+		}
 
 		size_t operandLen = strlen(operand);
 		char* noperand = (char*) malloc(sizeof(char) * operandLen + 1);
@@ -75,7 +78,11 @@ void addInstrObj(InstructionStream* instrStream, instr_obj_t* instrObj) {
 	instrStream->size++;	
 }
 
-void displayInstrStream(InstructionStream* instrStream) {
+instr_obj_t* getInstr(InstructionStream* instr, uint32_t addr) {
+	return NULL;
+}
+
+void displayInstrStream(InstructionStream* instrStream, bool showEncoding) {
 	printf("Instruction Stream (%d instructions):\n", instrStream->size);
 	for (int i = 0; i < instrStream->size; i++) {
 		instr_obj_t* instrObj = instrStream->instructions[i];
@@ -84,12 +91,16 @@ void displayInstrStream(InstructionStream* instrStream) {
 		printf("\t\tOperands: ");
 		char** temp = instrObj->operands;
 		while (*temp) {
-			printf("(%s), ", *temp);
+			if (*temp != 0xFEEDFAED) printf("(%s), ", *temp);
+			else printf("(), ");
+
 			temp++;
 		}
 		printf("\n");
 
 		printf("\t\tAddress: 0x%x\n", instrObj->addr);
+
+		if (showEncoding) printf("\t\tEncoding: 0x%x\n", instrObj->encoding);
 	}
 }
 
@@ -101,7 +112,7 @@ void deleteInstrStream(InstructionStream* instrStream) {
 		// free(instrObj->source);
 
 		char** temp = instrObj->operands;
-		while (*temp) { free(*temp); temp++; }
+		while (*temp && *temp != 0xFEEDFAED) { free(*temp); temp++; }
 		free(instrObj->operands);
 		free(instrObj);
 	}

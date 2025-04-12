@@ -7,6 +7,7 @@
 #include <strings.h>
 
 #include "lexer-parser.h"
+#include "constants.h"
 #include "assemblerError.h"
 #include "evaluator.h"
 
@@ -496,25 +497,33 @@ static void validateImmediate(char* imm, enum ImmediateSize immSize) {
 
 HANDLE_INSTR(handleI) {
 	// I-Types typically have it in the form `[instr] <xd>, <xs>, #<imm>`
-	// Exception is `not <xd>, #<imm>`
+	// Exceptions are `not <xd>, #<imm>`, `cmp <xs|sp>, #<imm>`, `mv <xd>, #<imm>`, `mvn <xd>, #<imm>`, and `nop`
 
 	char* xd = NULL;
 	char* xs = NULL;
 	char* imm = NULL;
 
-	xd = strtok_r(NULL, " \t,", &args);
-	if (!xd) handleError(ERR_INVALID_SYNTAX, FATAL, "No destination register for %s!\n", instr);
-	validateRegister(xd);
+	bool isNOP = (strcmp(instr, VALID_INSTRUCTIONS[NOP]) == 0);
 
-	if (strcmp(instr, "not") != 0) {
+	// 			cmp
+	if (*instr != 'c' || !isNOP) {
+		xd = strtok_r(NULL, " \t,", &args);
+		if (!xd) handleError(ERR_INVALID_SYNTAX, FATAL, "No destination register for %s!\n", instr);
+		validateRegister(xd);
+	} else xd = VALID_REGISTERS[XZ];
+
+	// 				not												mv(n)
+	if ((*instr != 'n') || (*instr != 'm' && *instr != 'v') || !isNOP) {
 		xs = strtok_r(NULL, " \t,", &args);
 		if (!xs) handleError(ERR_INVALID_SYNTAX, FATAL, "No source register for %s!\n", instr);
 		validateRegister(xs);
-	}
+	} else xs = VALID_REGISTERS[XZ];
 
-	imm = strtok_r(NULL, " \t", &args);
-	if (!imm) handleError(ERR_INVALID_SYNTAX, FATAL, "No immediate for %s!\n", instr);
-	validateImmediate(imm, IMM14);
+	if (!isNOP) {
+		imm = strtok_r(NULL, " \t", &args);
+		if (!imm) handleError(ERR_INVALID_SYNTAX, FATAL, "No immediate for %s!\n", instr);
+		validateImmediate(imm, IMM14);
+	} else imm = "#0";
 
 	char* operands[] = { NULL, NULL, NULL, NULL };
 
@@ -528,23 +537,32 @@ HANDLE_INSTR(handleI) {
 
 	instr_obj_t* instrObj = initInstrObj(sectTable->entries[3].lp, NULL, instr, (char**) operands);
 	addInstrObj(instrStream, instrObj);
+
+	// Temporarily mark type with `encoding`
+	instrObj->encoding = 0x0;
 }
 
 HANDLE_INSTR(handleR) {
 	// I-Types typically have it in the form `[instr] <xd>, <xs>, <xr>`
-	// Exception is `not <xd>, <xs>`
+	// Exceptions are `not <xd>, <xs>`, `cmp <xs>, <xr>`, `mv <xd>, <xs>`, and `mvn <xd>, <xr>`
 
 	char* xd = NULL;
 	char* xs = NULL;
 	char* xr = NULL;
 
-	xd = strtok_r(NULL, " \t,", &args);
-	if (!xd) handleError(ERR_INVALID_SYNTAX, FATAL, "No destination register for %s!\n", instr);
-	validateRegister(xd);
+	// 			 cmp
+	if (*instr != 'c') {
+		xd = strtok_r(NULL, " \t,", &args);
+		if (!xd) handleError(ERR_INVALID_SYNTAX, FATAL, "No destination register for %s!\n", instr);
+		validateRegister(xd);
+	} else xd = VALID_REGISTERS[XZ];
 
-	xs = strtok_r(NULL, " \t,", &args);
-	if (!xs) handleError(ERR_INVALID_SYNTAX, FATAL, "No source register for %s!\n", instr);
-	validateRegister(xs);
+	// 							mvn
+	if (*instr != 'm' && *(instr+2) != 'n') {
+		xs = strtok_r(NULL, " \t,", &args);
+		if (!xs) handleError(ERR_INVALID_SYNTAX, FATAL, "No source register for %s!\n", instr);
+		validateRegister(xs);
+	} else xs = VALID_REGISTERS[XZ];
 
 	if (strcmp(instr, "not") != 0) {
 		xr = strtok_r(NULL, " \t", &args);
@@ -554,15 +572,13 @@ HANDLE_INSTR(handleR) {
 	char* operands[] = { NULL, NULL, NULL, NULL };
 
 	operands[0] = xd;
-	if (xr) {
-		operands[1] = xs;
-		operands[2] = xr;
-	} else {
-		operands[1] = xs;
-	}
+	operands[1] = xs;
+	if (xr) operands[2] = xr;
 
 	instr_obj_t* instrObj = initInstrObj(sectTable->entries[3].lp, NULL, instr, (char**) operands);
 	addInstrObj(instrStream, instrObj);
+
+	instrObj->encoding = 0x1;
 }
 
 HANDLE_INSTR(handleIR) {
@@ -601,7 +617,7 @@ HANDLE_INSTR(handleM) {
 
 	char* base = NULL;
 	char* offset = 0xFEEDFAED;
-	char* index = NULL;
+	char* index = 0xFEEDFAED;
 
 	base = strtok_r(NULL, " \t,", &args);
 	// ld doesn't need [x.., it can also start with a label/immediate
@@ -619,33 +635,37 @@ HANDLE_INSTR(handleM) {
 			bool evald = true;
 			uint32_t imm = eval(expr, symbTable, &evald);
 
-			char immhstr[20];
-			char immlstr[14];
+			char immhstr[21];
+			char immlstr[15];
 			uint32_t immh, imml;
 			// If it was able to be evaled, split imm
 			if (evald) {
 				immh = (imm >> 13) & 0x7ffff;
 				imml = (imm >> 0) & 0x1fff;
 				
-				sprintf(immhstr, "%u", immh);
-				sprintf(immlstr, "%u", imml);
+				sprintf(immhstr, "#%u", immh);
+				sprintf(immlstr, "#%u", imml);
 			} else {
 				// If not (meaning it used an undefined label/symbol), leave it for future evaluation
 				// But keep the need to split imm
 				// TODO
 			}
 
-			char* operands[] = { xd, immhstr, NULL };
+			char* operands[] = { xd, VALID_REGISTERS[XZ], immhstr, NULL };
 			instr_obj_t* mvInstr = initInstrObj(sectTable->entries[3].lp, NULL, "mv", (char**) operands);
 			addInstrObj(instrStream, mvInstr);
+			mvInstr->encoding = 0x0;
 
-			operands[1] = "#13";
+			operands[1] = xd;
+			operands[2] = "#13";
 			instr_obj_t* lslInstr = initInstrObj(sectTable->entries[3].lp+4, NULL, "lsl", (char**) operands);
 			addInstrObj(instrStream, lslInstr);
+			lslInstr->encoding = 0x0;
 
-			operands[1] = immlstr;
+			operands[2] = immlstr;
 			instr_obj_t* addInstr = initInstrObj(sectTable->entries[3].lp+8, NULL, "add", (char**) operands);
 			addInstrObj(instrStream, addInstr);
+			addInstr->encoding = 0x0;
 
 			sectTable->entries[3].lp += 8; // The normal LP is incremented by 4 in main, handle the extra two instructions
 
@@ -695,26 +715,24 @@ HANDLE_INSTR(handleM) {
 
 	instr_obj_t* instrObj = initInstrObj(sectTable->entries[3].lp, NULL, instr, (char**) operands);
 	addInstrObj(instrStream, instrObj);
+
+	instrObj->encoding = 0x2;
 }
 
 HANDLE_INSTR(handleBi) {
-	char* label = strtok_r(NULL, " \t", &args);
-	if (!label) handleError(ERR_INVALID_SYNTAX, FATAL, "Label not found for %s!\n", instr);
+	char* expr = strtok_r(NULL, " \t", &args);
+	if (!expr) handleError(ERR_INVALID_SYNTAX, FATAL, "Label not found for %s!\n", instr);
+	if (*expr == '#') handleError(ERR_INVALID_SYNTAX, FATAL, "Bad expression for %s!\n", expr);
 
-	if (*label == '#') handleError(ERR_INVALID_SYNTAX, FATAL, "Bad expression for %s!\n", label);
+	// args can either be a label in itself or an expression
+	// Either way, it may contain undefined (as of now) labels
+	// Hold
 
-	// Label can either be just a label (_HERE) or an expression involving a label
-	// Make sure it is aligned to 4 bytes
-	bool canEval = true;
-	int32_t labelEvaled = (int32_t) eval(label, symbTable, &canEval);
-	if (labelEvaled % 4 != 0) handleError(ERR_INVALID_EXPRESSION, FATAL, "Expresion %s is not aligned to 4!\n", label);
-
-	char offset[11];
-	sprintf(offset, "%d", labelEvaled);
-
-	char* operands[] = { offset, NULL };
+	char* operands[] = { expr, NULL };
 	instr_obj_t* instrObj = initInstrObj(sectTable->entries[3].lp, NULL, instr, (char**) operands);
 	addInstrObj(instrStream, instrObj);
+
+	instrObj->encoding = 0x3;
 }
 
 HANDLE_INSTR(handleBu) {
@@ -729,6 +747,8 @@ HANDLE_INSTR(handleBu) {
 
 	instr_obj_t* instrObj = initInstrObj(sectTable->entries[3].lp, NULL, instr, (char**) operands);
 	addInstrObj(instrStream, instrObj);
+
+	instrObj->encoding = 0x4;
 }
 
 HANDLE_INSTR(handleBc) {
@@ -752,8 +772,6 @@ void handleInstruction(InstructionStream* instrStream, SymbolTable* symbTable, S
 	TOLOWER(temp);
 	// Make sure instr is valid
 	int index = validateInstruction(instr);
-
-	// fixAliases(&instr, &args, index);
 
 	if (index >= IR_TYPE_IDX && index < I_TYPE_IDX) handleIR(instrStream, symbTable, sectTable, instr, args);
 	else if (index >= I_TYPE_IDX && index < R_TYPE_IDX ) handleI(instrStream, symbTable, sectTable, instr, args);

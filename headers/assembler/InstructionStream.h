@@ -2,6 +2,7 @@
 #define _INSTRUCTION_STREAM_H_
 
 #include <stdint.h>
+#include <stdbool.h>
 
 
 typedef struct InstructionObject {
@@ -25,9 +26,9 @@ instr_obj_t* initInstrObj(uint32_t addr, char* source, char* instr, char** opera
 
 void addInstrObj(InstructionStream* instrStream, instr_obj_t* instrObj);
 
-// instr_obj_t* getInstrObj();
+instr_obj_t* getInstr(InstructionStream* instr, uint32_t addr);
 
-void displayInstrStream(InstructionStream* instrStream);
+void displayInstrStream(InstructionStream* instrStream, bool showEncoding);
 
 void deleteInstrStream(InstructionStream* instrStream);
 
