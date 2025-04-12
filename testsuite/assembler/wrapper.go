@@ -20,6 +20,10 @@ func arxsmInitDataTable() *C.DataTable {
 	return C.initDataTable()
 }
 
+func arxsmGetDataEntry(dataTable *C.DataTable, sectType C.data_sect_type_t, addr C.uint32_t) *C.data_entry_t {
+	return C.getDataEntry(dataTable, sectType, addr)
+}
+
 func arxsmDisplayDataTable(dataTable *C.DataTable) {
 	C.displayDataTable(dataTable)
 }
@@ -155,6 +159,7 @@ func arxsmDeleteSymbTable(symbTable *C.SymbolTable) {
 }
 
 // END
+// utils
 
 const (
 	RESET = "\033[0m"
@@ -162,3 +167,15 @@ const (
 	GREEN = "\033[32m"
 	YELLOW = "\033[33m"
 )
+
+func getString(str [8]byte) string {
+	cStr := (**C.char)(unsafe.Pointer(&str[0]))
+
+	return C.GoString(*cStr)
+}
+
+func getFloatArr(fArr [8]byte, count int) []float32 {
+	cFloat := *(**C.float)(unsafe.Pointer(&fArr[0]))
+
+	return unsafe.Slice((*float32)(unsafe.Pointer(cFloat)), count)
+}
