@@ -1,8 +1,8 @@
 CC = gcc
 CFLAGS = -Wall
-INCLUDES = -I../headers/assembler
+INCLUDES = -I../headers/assembler -I../headers
 
-SRCS = assembler.c assemblerError.c DataTable.c encoder.c evaluator.c InstructionStream.c SectionTable.c SymbolTable.c preprocessor.c lexer-parser.c
+SRCS = assembler.c assemblerError.c DataTable.c encoder.c evaluator.c generator.c InstructionStream.c SectionTable.c SymbolTable.c preprocessor.c lexer-parser.c
 TARGET = ../out/arxsm
 
 OBJS = $(SRCS:%.c=%.o)

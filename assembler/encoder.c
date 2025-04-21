@@ -33,6 +33,8 @@ static uint8_t getRegisterEncoding(char* reg) {
 	if (*reg == 'c' || *reg == 'C') return (atoi(reg+1) + 12);
 
 	if (*reg == 's' || *reg == 'S') return (atoi(reg+1) + 17);
+
+	return 0;
 }
 
 static uint32_t getImmediateEncoding(char* imm, SymbolTable* symbTable, enum ImmediateSize size) {

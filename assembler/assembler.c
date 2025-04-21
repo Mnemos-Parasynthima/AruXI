@@ -14,6 +14,7 @@
 #include "lexer-parser.h"
 #include "evaluator.h"
 #include "encoder.h"
+#include "generator.h"
 
 
 static void resolveSymbols(SymbolTable* symbTable) {
@@ -210,6 +211,12 @@ int main(int argc, char const* argv[]) {
 	SectionTable* sectTable = initSectionTable();
 	DataTable* dataTable = initDataTable();
 
+	// For now, program is loaded at a fixed address, refer to documentation on Process Address Space
+	sectTable->entries[0].lp = 0x20090000;
+	sectTable->entries[1].lp = 0x20080000;
+	sectTable->entries[2].lp = 0x20040000;
+	sectTable->entries[3].lp = 0x20190000;
+
 	// Expressions can use the LP (@)
 	// Instead of passing it to eval, treat it as a (variable) label/symbol
 	// so eval can use it should it come up
@@ -271,10 +278,10 @@ int main(int argc, char const* argv[]) {
 	}
 	fclose(source);
 
-	sectTable->entries[0].size = sectTable->entries[0].lp;
-	sectTable->entries[1].size = sectTable->entries[1].lp;
-	sectTable->entries[2].size = sectTable->entries[2].lp;
-	sectTable->entries[3].size = sectTable->entries[3].lp;
+	sectTable->entries[0].size = sectTable->entries[0].lp - 0x20090000;
+	sectTable->entries[1].size = sectTable->entries[1].lp - 0x20080000;
+	sectTable->entries[2].size = sectTable->entries[2].lp - 0x20040000;
+	sectTable->entries[3].size = sectTable->entries[3].lp - 0x20190000;
 
 	printf("\n");
 	displaySymbTable(symbTable);
@@ -309,6 +316,9 @@ int main(int argc, char const* argv[]) {
 	printf("\n");
 	displayInstrStream(instrStream, true);
 
+	AEFbin* bin = generateBinary(instrStream, symbTable, dataTable, sectTable);
+
+	writeBinary(bin, outbin);
 
 	deleteSymbTable(symbTable);
 	deleteInstrStream(instrStream);
