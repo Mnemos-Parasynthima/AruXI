@@ -77,7 +77,7 @@ void displaySymbTable(SymbolTable* symbTable) {
 		
 		printf("%s: ", entry->name);
 		if (EXPR == 0b1) printf("(%s)\t", entry->expr);
-		else printf("(%d)\t", entry->value);
+		else printf("(0x%x)\t", entry->value);
 
 		char sectStr[6];
 		if (SECT == 0b00) sprintf(sectStr, "DATA");

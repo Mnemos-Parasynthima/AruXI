@@ -93,6 +93,7 @@ data_entry_t* getDataEntry(DataTable* dataTable, data_sect_type_t sectType, uint
 }
 
 static void displayDataEntry(data_entry_t* dataEntry) {
+	// TODO: Display actual data
 	uint8_t type = dataEntry->type;
 
 	char* typeStr = NULL;
@@ -122,6 +123,7 @@ static void displayDataEntry(data_entry_t* dataEntry) {
 	printf("\t\tAddress: 0x%x\n", dataEntry->addr);
 	printf("\t\tSize: 0x%x\n", dataEntry->size);
 	printf("\t\tSource: %s\n", dataEntry->source);
+	// printf("\t\tData: %s\n", dataEntry->data);
 }
 
 void displayDataTable(DataTable* dataTable) {
