@@ -77,12 +77,16 @@ static void setDirective(SymbolTable* symbTable, char* args, uint8_t activeSecti
 	// args only provides all other tokens/strings after .set
 	// ensure at least two left: the symbol and an expression
 	char* symbol = strtok_r(NULL, " \t,", &args);
-	char* expr = strtok_r(NULL, ",", &args);
+	// Ensure no redefinition of reserved keywords
+	// checkReserve(symbol);
+
+	char* expr = strtok_r(NULL, " \t,", &args);
 
 	if (!expr) handleError(ERR_INVALID_SYNTAX, FATAL, "Expression for set %s not found!\n", symbol);
 
 	// Must be checked to ensure propery synax of .set [symb], [expr]
 	
+	// Allow:
 	// .set as,2
 	// .set as, 2
 	// .set as	,	2
@@ -362,9 +366,7 @@ static void zeroDirective(SectionTable* sectTable, DataTable* dataTable, SymbolT
 }
 
 // TODO
-static void fillDirective(SectionTable* sectTable, DataTable* dataTable, char* args) {
-	
-}
+static void fillDirective(SectionTable* sectTable, DataTable* dataTable, char* args) {}
 
 // TODO
 static void alignDirective(SectionTable* sectTable, DataTable* dataTable, char* args) {}
@@ -490,6 +492,12 @@ static void validateRegister(char* reg) {
 static void validateImmediate(char* imm, enum ImmediateSize immSize) {
 	if (*imm != '#') handleError(ERR_INVALID_SYNTAX, FATAL, "Immediate %s does not start with '#'!\n", imm);
 
+	// There should be something next to #
+	if (*(imm+1) == '\0') handleError(ERR_INVALID_SYNTAX, FATAL, "No immediate found!\n");
+
+	// That something needs to be a valid imm
+
+	// Make sure imm is either hex, bin, or decimal
 	// Make sure the sizes are appropriate
 }
 
@@ -505,35 +513,30 @@ HANDLE_INSTR(handleI) {
 
 	bool isNOP = (strcmp(instr, VALID_INSTRUCTIONS[NOP]) == 0);
 
-	// 			cmp
-	if (*instr != 'c' || !isNOP) {
+	// cmp doesn't have a destination
+	if (*instr != 'c' && !isNOP) {
 		xd = strtok_r(NULL, " \t,", &args);
+		printf("Has destination '%s'\n", xd);
 		if (!xd) handleError(ERR_INVALID_SYNTAX, FATAL, "No destination register for %s!\n", instr);
 		validateRegister(xd);
 	} else xd = VALID_REGISTERS[XZ];
 
-	// 				not												mv(n)
-	if ((*instr != 'n') || (*instr != 'm' && *instr != 'v') || !isNOP) {
+	// not, mv, mvn, nop, and don't have a source
+	if ((*instr != 'n') && (*instr != 'm' && *instr != 'v') && !isNOP) {
 		xs = strtok_r(NULL, " \t,", &args);
+		printf("Has source '%s'\n", xs);
 		if (!xs) handleError(ERR_INVALID_SYNTAX, FATAL, "No source register for %s!\n", instr);
 		validateRegister(xs);
 	} else xs = VALID_REGISTERS[XZ];
 
+	// nop is the only to now have imm (thus all operands all null)
 	if (!isNOP) {
-		imm = strtok_r(NULL, " \t", &args);
+		imm = strtok_r(NULL, " \t,", &args);
+		printf("Has immediate '%s'\n", imm);
 		if (!imm) handleError(ERR_INVALID_SYNTAX, FATAL, "No immediate for %s!\n", instr);
-		validateImmediate(imm, IMM14);
 	} else imm = "#0";
 
-	char* operands[] = { NULL, NULL, NULL, NULL };
-
-	operands[0] = xd;
-	if (xs) {
-		operands[1] = xs;
-		operands[2] = imm;
-	} else {
-		operands[1] = imm;
-	}
+	char* operands[] = { xd, xs, imm, NULL };
 
 	instr_obj_t* instrObj = initInstrObj(sectTable->entries[3].lp, NULL, instr, (char**) operands);
 	addInstrObj(instrStream, instrObj);
@@ -543,37 +546,38 @@ HANDLE_INSTR(handleI) {
 }
 
 HANDLE_INSTR(handleR) {
-	// I-Types typically have it in the form `[instr] <xd>, <xs>, <xr>`
-	// Exceptions are `not <xd>, <xs>`, `cmp <xs>, <xr>`, `mv <xd>, <xs>`, and `mvn <xd>, <xr>`
+	// R-Types have it in the form `[instr] <xd>, <xs>, <xr>`
+	// (mul, smul, div, sdiv)
 
 	char* xd = NULL;
 	char* xs = NULL;
 	char* xr = NULL;
 
-	// 			 cmp
+	// cmp doesn't have a destination
 	if (*instr != 'c') {
 		xd = strtok_r(NULL, " \t,", &args);
+		printf("Has destination '%s'\n", xd);
 		if (!xd) handleError(ERR_INVALID_SYNTAX, FATAL, "No destination register for %s!\n", instr);
 		validateRegister(xd);
 	} else xd = VALID_REGISTERS[XZ];
 
-	// 							mvn
+	// mvn doesn't have a first source
 	if (*instr != 'm' && *(instr+2) != 'n') {
 		xs = strtok_r(NULL, " \t,", &args);
+		printf("Has source 0 '%s'\n", xs);
 		if (!xs) handleError(ERR_INVALID_SYNTAX, FATAL, "No source register for %s!\n", instr);
 		validateRegister(xs);
 	} else xs = VALID_REGISTERS[XZ];
 
-	if (strcmp(instr, "not") != 0) {
-		xr = strtok_r(NULL, " \t", &args);
+	// mv and not don't have a second source
+	if ((strcmp(instr, "not") != 0) && (*instr != 'm' && *(instr+1) != 'v' && *(instr+2) != '\0')) {
+		xr = strtok_r(NULL, " \t,", &args);
+		printf("Has source 1 '%s'\n", xr);
 		if (!xr) handleError(ERR_INVALID_SYNTAX, FATAL, "No second source register for %s!\n", instr);
-	}
+		validateRegister(xr);
+	} else xr = VALID_REGISTERS[XZ];
 
-	char* operands[] = { NULL, NULL, NULL, NULL };
-
-	operands[0] = xd;
-	operands[1] = xs;
-	if (xr) operands[2] = xr;
+	char* operands[] = { xd, xs, xr, NULL };
 
 	instr_obj_t* instrObj = initInstrObj(sectTable->entries[3].lp, NULL, instr, (char**) operands);
 	addInstrObj(instrStream, instrObj);
@@ -582,16 +586,7 @@ HANDLE_INSTR(handleR) {
 }
 
 HANDLE_INSTR(handleIR) {
-	char* temp = args;
-
-	while (*temp) {
-		if (*temp == '#') {
-			handleI(instrStream, symbTable, sectTable, instr, args);
-			return;
-		}
-		temp++;
-	}
-	handleR(instrStream, symbTable, sectTable, instr, args);
+	
 }
 
 HANDLE_INSTR(handleM) {
@@ -772,6 +767,11 @@ void handleInstruction(InstructionStream* instrStream, SymbolTable* symbTable, S
 	TOLOWER(temp);
 	// Make sure instr is valid
 	int index = validateInstruction(instr);
+
+	/**
+	 * Due to the varying syntax of I-R instructions, most of its checking will be deferred to pass 2, when more context appears
+	 * However, for true I/R types, they will be processed immediately
+	 */
 
 	if (index >= IR_TYPE_IDX && index < I_TYPE_IDX) handleIR(instrStream, symbTable, sectTable, instr, args);
 	else if (index >= I_TYPE_IDX && index < R_TYPE_IDX ) handleI(instrStream, symbTable, sectTable, instr, args);
