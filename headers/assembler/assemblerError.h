@@ -11,6 +11,8 @@
 #define WHITE "\x1b[37m" 
 
 typedef enum {
+	WARN,
+	ERR_INNER,
 	ERR_MEM,
 	ERR_IO,
 	ERR_ENTRY_NOT_GLOBAL,

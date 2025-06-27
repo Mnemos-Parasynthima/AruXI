@@ -7,6 +7,13 @@
 #include "SymbolTable.h"
 
 
+enum ImmediateSize {
+	IMM14, SIMM24, SIMM19, SIMM9
+};
+
+
+void validateRegister(char* reg);
+void validateImmediate(char* imm, enum ImmediateSize immSize);
 
 void handleDirective(SymbolTable* symbTable, SectionTable* sectTable, DataTable* dataTable, char* directive, char* args);
 
