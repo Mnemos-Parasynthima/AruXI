@@ -75,7 +75,7 @@ static char* VALID_REGISTERS[] = {
 	"x21", "x22", "x23", "x24", "x25", "x26", "x27", "x28", "x29", "x30", "x31", "sp",
 	"xr", "a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7", "a8", "a9",
 	"c0", "c1", "c2", "c3", "c4", "s0", "s1", "s2", "s3", "s4", "s5", "s6", "s7", "s8", "s9", "s10",
-	"lr", "xb", "xz"
+	"lr", "xb", "xz", "ir"
 };
 
 enum Registers {
@@ -84,7 +84,7 @@ enum Registers {
 	X21, X22, X23, X24, X25, X26, X27, X28, X29, X30, X31, SP,
 	XR, A0, A1, A2, A3, A4, A5, A6, A7, A8, A9,
 	C0, C1, C2, C3, C4, S0, S1, S2, S3, S4, S5, S6, S7, S8, S9, S10,
-	LR, XB, XZ
+	LR, XB, XZ, IR
 };
 
 static char* VALID_CONDS[] = {

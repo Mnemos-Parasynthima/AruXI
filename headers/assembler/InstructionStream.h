@@ -26,7 +26,7 @@ instr_obj_t* initInstrObj(uint32_t addr, char* source, char* instr, char** opera
 
 void addInstrObj(InstructionStream* instrStream, instr_obj_t* instrObj);
 
-instr_obj_t* getInstr(InstructionStream* instr, uint32_t addr);
+instr_obj_t* getInstr(InstructionStream* instrStream, uint32_t addr);
 
 void displayInstrStream(InstructionStream* instrStream, bool showEncoding);
 

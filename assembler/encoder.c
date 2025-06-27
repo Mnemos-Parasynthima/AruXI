@@ -13,7 +13,7 @@ enum ImmediateSize {
 	IMM14, SIMM24, SIMM19, SIMM9
 };
 
-#define SHOW_OPERANDS(ops) while (*ops) { printf("%s, ", *ops); ops++; }
+#define SHOW_OPERANDS(ops) while (*ops) { if (*ops != 0xFEEDFAED) printf("%s, ", *ops); ops++; }
 
 
 static uint8_t getConditionEncoding(char* cond) {
@@ -21,6 +21,8 @@ static uint8_t getConditionEncoding(char* cond) {
 }
 
 static uint8_t getRegisterEncoding(char* reg) {
+	if (reg == 0xFEEDFAED) return 30;
+
 	// Special name
 	if (strcasecmp(reg, VALID_REGISTERS[XR]) == 0) return 0;
 	else if (strcasecmp(reg, VALID_REGISTERS[LR]) == 0) return 28;
@@ -38,6 +40,8 @@ static uint8_t getRegisterEncoding(char* reg) {
 }
 
 static uint32_t getImmediateEncoding(char* imm, SymbolTable* symbTable, enum ImmediateSize size) {
+	if (imm == 0xFEEDFAED) return 0;
+
 	bool canEval = true;
 	int32_t res = eval(imm, symbTable, &canEval);
 
@@ -70,13 +74,8 @@ static void encodeI(instr_obj_t* instr, SymbolTable* symbTable) {
 	printf("\n");
 
 	char* xd = ops[0];
-	char* xs = NULL;
-	char* imm = NULL;
-	
-	if (ops[2]) {
-		xs = ops[1];
-		imm = ops[2];
-	} else imm = ops[1];
+	char* xs = ops[1];
+	char* imm = ops[2];
 
 	if ((strcasecmp(instrStr, VALID_INSTRUCTIONS[ADD]) == 0) || 
 			(strcasecmp(instrStr, VALID_INSTRUCTIONS[MV]) == 0) || (strcasecmp(instrStr, VALID_INSTRUCTIONS[NOP]) == 0)) {
@@ -116,9 +115,7 @@ static void encodeR(instr_obj_t* instr) {
 
 	char* xd = ops[0];
 	char* xs = ops[1];
-	char* xr = NULL;
-	
-	if (ops[2]) xr = ops[2];
+	char* xr = ops[2];
 
 	if (strcasecmp(instrStr, VALID_INSTRUCTIONS[ADD]) == 0) opcode = 0b10000001;
 	else if (strcasecmp(instrStr, VALID_INSTRUCTIONS[ADDS]) == 0) opcode = 0b10001001;
@@ -273,6 +270,8 @@ void encode(InstructionStream* instrStream, SymbolTable* symbTable) {
 			case 0x4:
 				encodeBu(instr);
 				break;
+			case 0x10:
+				
 			default:
 				break;
 		}

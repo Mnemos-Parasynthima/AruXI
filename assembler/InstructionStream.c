@@ -46,13 +46,13 @@ instr_obj_t* initInstrObj(uint32_t addr, char* source, char* instr, char** opera
 		char* operand = operands[i];
 
 		if (operand == 0xFEEDFAED) {
-			instrObj->operands[i] = 0xFEEDFAED;
+			instrObj->operands[i] = operand;
 			continue;
 		}
 
 		size_t operandLen = strlen(operand);
 		char* noperand = (char*) malloc(sizeof(char) * operandLen + 1);
-		if (!operand) handleError(ERR_MEM, FATAL, "Could not allocate memory for instruction operand!\n");
+		if (!noperand) handleError(ERR_MEM, FATAL, "Could not allocate memory for instruction operand!\n");
 
 		strcpy(noperand, operand);
 
@@ -78,7 +78,13 @@ void addInstrObj(InstructionStream* instrStream, instr_obj_t* instrObj) {
 	instrStream->size++;	
 }
 
-instr_obj_t* getInstr(InstructionStream* instr, uint32_t addr) {
+instr_obj_t* getInstr(InstructionStream* instrStream, uint32_t addr) {
+	for (int i = 0; i < instrStream->size; i++) {
+		instr_obj_t* instr = instrStream->instructions[i];
+
+		if (instr->addr == addr) return instr;
+	}
+
 	return NULL;
 }
 

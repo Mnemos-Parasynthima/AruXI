@@ -30,9 +30,6 @@ enum DirectiveIndex {
 	ALIGN
 };
 
-enum ImmediateSize {
-	IMM14, SIMM24, SIMM19, SIMM9
-};
 
 #define TOLOWER(str) for (; *str; ++str) *str = tolower(*str)
 #define TOUPPER(str) for (; *str; ++str) *str = toupper(*str)
@@ -80,7 +77,7 @@ static void setDirective(SymbolTable* symbTable, char* args, uint8_t activeSecti
 	// Ensure no redefinition of reserved keywords
 	// checkReserve(symbol);
 
-	char* expr = strtok_r(NULL, " \t,", &args);
+	char* expr = strtok_r(NULL, ",", &args);
 
 	if (!expr) handleError(ERR_INVALID_SYNTAX, FATAL, "Expression for set %s not found!\n", symbol);
 
@@ -97,8 +94,8 @@ static void setDirective(SymbolTable* symbTable, char* args, uint8_t activeSecti
 	// .set as
 
 	// if (*comma != ',') handleError(ERR_INVALID_SYNTAX, FATAL, "Invalid syntax for set directive on symbol %s\n", symbol);
-	char* nnull = strtok_r(NULL, " \t,", &args);
-	if (nnull) handleError(ERR_INVALID_SYNTAX, FATAL, "Invalid syntax for set directive on symbol %s\n", symbol);
+	char* nnull = strtok_r(NULL, ",", &args);
+	if (nnull) handleError(ERR_INVALID_SYNTAX, FATAL, "Invalid syntax for set directive on symbol %s, found '%s'\n", symbol, nnull);
 
 	// Make sure the symbol has not been set/defined before
 	// It is okay than an entry has been created as it could have been referenced earlier
@@ -475,12 +472,12 @@ static int validateInstruction(char* instr) {
 	for (int i = 0; i < size; i++) {
 		if (strcmp(VALID_INSTRUCTIONS[i], instr) == 0) return i;	
 	}
-	
+
 	handleError(ERR_INVALID_INSTRUCTION, FATAL, "Instruction %s is not valid!\n", instr);
 	return -1;
 }
 
-static void validateRegister(char* reg) {
+void validateRegister(char* reg) {
 	int size = sizeof(VALID_REGISTERS) / sizeof(char*);
 	for (int i = 0; i < size; i++) {
 		if (strcasecmp(VALID_REGISTERS[i], reg) == 0) return;
@@ -489,7 +486,7 @@ static void validateRegister(char* reg) {
 	handleError(ERR_INVALID_REGISTER, FATAL, "Register %s is not a valid register!\n", reg);
 }
 
-static void validateImmediate(char* imm, enum ImmediateSize immSize) {
+void validateImmediate(char* imm, enum ImmediateSize immSize) {
 	if (*imm != '#') handleError(ERR_INVALID_SYNTAX, FATAL, "Immediate %s does not start with '#'!\n", imm);
 
 	// There should be something next to #
@@ -505,7 +502,7 @@ static void validateImmediate(char* imm, enum ImmediateSize immSize) {
 
 HANDLE_INSTR(handleI) {
 	// I-Types typically have it in the form `[instr] <xd>, <xs>, #<imm>`
-	// Exceptions are `not <xd>, #<imm>`, `cmp <xs|sp>, #<imm>`, `mv <xd>, #<imm>`, `mvn <xd>, #<imm>`, and `nop`
+	// But nop has none, although an alias of add xz, xz, #0
 
 	char* xd = NULL;
 	char* xs = NULL;
@@ -513,28 +510,15 @@ HANDLE_INSTR(handleI) {
 
 	bool isNOP = (strcmp(instr, VALID_INSTRUCTIONS[NOP]) == 0);
 
-	// cmp doesn't have a destination
-	if (*instr != 'c' && !isNOP) {
-		xd = strtok_r(NULL, " \t,", &args);
-		printf("Has destination '%s'\n", xd);
-		if (!xd) handleError(ERR_INVALID_SYNTAX, FATAL, "No destination register for %s!\n", instr);
-		validateRegister(xd);
-	} else xd = VALID_REGISTERS[XZ];
+	if (isNOP) {
+		xd = VALID_REGISTERS[XZ];
+		xs = VALID_REGISTERS[XZ];
+		imm = "#0";
 
-	// not, mv, mvn, nop, and don't have a source
-	if ((*instr != 'n') && (*instr != 'm' && *instr != 'v') && !isNOP) {
-		xs = strtok_r(NULL, " \t,", &args);
-		printf("Has source '%s'\n", xs);
-		if (!xs) handleError(ERR_INVALID_SYNTAX, FATAL, "No source register for %s!\n", instr);
-		validateRegister(xs);
-	} else xs = VALID_REGISTERS[XZ];
-
-	// nop is the only to now have imm (thus all operands all null)
-	if (!isNOP) {
-		imm = strtok_r(NULL, " \t,", &args);
-		printf("Has immediate '%s'\n", imm);
-		if (!imm) handleError(ERR_INVALID_SYNTAX, FATAL, "No immediate for %s!\n", instr);
-	} else imm = "#0";
+		// Ensure nothing after
+		char* post = strtok_r(NULL, " \t,", &args);
+		if (post) handleError(ERR_INVALID_SYNTAX, FATAL, "Unexpected operands: `%s`\n", post);
+	}
 
 	char* operands[] = { xd, xs, imm, NULL };
 
@@ -549,33 +533,17 @@ HANDLE_INSTR(handleR) {
 	// R-Types have it in the form `[instr] <xd>, <xs>, <xr>`
 	// (mul, smul, div, sdiv)
 
-	char* xd = NULL;
-	char* xs = NULL;
-	char* xr = NULL;
+	char* xd = strtok_r(NULL, " \t,", &args);
+	if (!xd) handleError(ERR_INVALID_SYNTAX, FATAL, "No destination register for %s!\n", instr);
+	validateRegister(xd);
 
-	// cmp doesn't have a destination
-	if (*instr != 'c') {
-		xd = strtok_r(NULL, " \t,", &args);
-		printf("Has destination '%s'\n", xd);
-		if (!xd) handleError(ERR_INVALID_SYNTAX, FATAL, "No destination register for %s!\n", instr);
-		validateRegister(xd);
-	} else xd = VALID_REGISTERS[XZ];
+	char* xs = strtok_r(NULL, " \t,", &args);
+	if (!xs) handleError(ERR_INVALID_SYNTAX, FATAL, "No source register for %s!\n", instr);
+	validateRegister(xs);
 
-	// mvn doesn't have a first source
-	if (*instr != 'm' && *(instr+2) != 'n') {
-		xs = strtok_r(NULL, " \t,", &args);
-		printf("Has source 0 '%s'\n", xs);
-		if (!xs) handleError(ERR_INVALID_SYNTAX, FATAL, "No source register for %s!\n", instr);
-		validateRegister(xs);
-	} else xs = VALID_REGISTERS[XZ];
-
-	// mv and not don't have a second source
-	if ((strcmp(instr, "not") != 0) && (*instr != 'm' && *(instr+1) != 'v' && *(instr+2) != '\0')) {
-		xr = strtok_r(NULL, " \t,", &args);
-		printf("Has source 1 '%s'\n", xr);
-		if (!xr) handleError(ERR_INVALID_SYNTAX, FATAL, "No second source register for %s!\n", instr);
-		validateRegister(xr);
-	} else xr = VALID_REGISTERS[XZ];
+	char* xr = strtok_r(NULL, " \t,", &args);
+	if (!xr) handleError(ERR_INVALID_SYNTAX, FATAL, "No second source register for %s!\n", instr);
+	validateRegister(xr);
 
 	char* operands[] = { xd, xs, xr, NULL };
 
@@ -586,7 +554,36 @@ HANDLE_INSTR(handleR) {
 }
 
 HANDLE_INSTR(handleIR) {
-	
+	// All IR instructions have common dest reg except cmp
+	// Easy enough filter
+	char* xd = NULL;
+
+	// So far, only `cmp` has 'c', might change with more instructions that are IR
+	if (*instr != 'c') {
+		xd = strtok_r(NULL, " \t,", &args);
+		if (!xd) handleError(ERR_INVALID_SYNTAX, FATAL, "No destination register for %s!\n", instr);
+		validateRegister(xd);
+	} else xd = VALID_REGISTERS[XZ];
+
+	char* operands[] = { xd, 0xFEEDFAED, 0xFEEDFAED, NULL };
+
+	// The rest of the registers and/or immediates depend on the instruction itself and context
+	// The checking will be done in pass 2
+	// For now, only blind tokenizing will occur
+	// The max amount of operands, excluding destination, is 2
+	int count = 1;
+
+	while (args && count < 3) {
+		char* operand = strtok_r(NULL, " \t,", &args);
+		if (!operand) break;
+
+		operands[count++] = operand;
+	}
+
+	instr_obj_t* instrObj = initInstrObj(sectTable->entries[3].lp, NULL, instr, (char**) operands);
+	addInstrObj(instrStream, instrObj);
+
+	instrObj->encoding = 0x10;
 }
 
 HANDLE_INSTR(handleM) {
@@ -637,7 +634,7 @@ HANDLE_INSTR(handleM) {
 			if (evald) {
 				immh = (imm >> 13) & 0x7ffff;
 				imml = (imm >> 0) & 0x1fff;
-				
+
 				sprintf(immhstr, "#%u", immh);
 				sprintf(immlstr, "#%u", imml);
 			} else {
@@ -669,11 +666,12 @@ HANDLE_INSTR(handleM) {
 		// Else, apply the general case
 	}
 
+	// Making sure the addressing starts with '['
 	if (*base != '[') handleError(ERR_INVALID_SYNTAX, FATAL, "Invalid memory addressing for %s!\n", instr);
 
 	char* offsetIndex = strtok_r(NULL, " \t", &args);
 	// offsetIndex can either be NULL if only [x]
-	// or the first part of off expression (or the entire thing as off])
+	// or 'off ]'
 	// or the index register
 
 	if (*(base+3) == ']' || *(base+4) == ']') {
@@ -683,20 +681,19 @@ HANDLE_INSTR(handleM) {
 			index = offsetIndex;
 			// Make sure nothing left
 			char* _nnull = strtok_r(NULL, " \t", &args);
-			if (_nnull) handleError(ERR_INVALID_SYNTAX, FATAL, "Invalid memory addressing for %s\n", instr);
+			if (_nnull) handleError(ERR_INVALID_SYNTAX, FATAL, "Unexpected operands for %s: %s\n", instr, _nnull);
 
 			validateRegister(index);
 		}
 	} else {
 		offset = offsetIndex;
 		// There is the offset
-		// Offset is an expression/immediate that is to start with # and ends with ]
 		// Take out ]
 		size_t offlen = strlen(offset);
-		if (*(offset+offlen-1) != ']') handleError(ERR_INVALID_SYNTAX, FATAL, "Invalid memory addressing for %s!\n", instr);
+		if (*(offset+offlen-1) != ']') handleError(ERR_INVALID_SYNTAX, FATAL, "Invalid memory addressing for %s: %s!\n", instr, offset);
 		*(offset+offlen-1) = '\0';
 
-		validateImmediate(offset, SIMM9);
+		// validateImmediate(offset, SIMM9);
 	}
 
 	// Take out the square brackets from [x]

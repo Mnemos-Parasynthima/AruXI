@@ -58,7 +58,7 @@ static void completeData(DataTable* dataTable, SymbolTable* symbTable) {
 			// or make a temp copy, work on that copy, keeping the source intact
 			char* temp = (char*) malloc(sizeof(char) * strlen(srcData) + 1);
 			strcpy(temp, srcData);
-			
+
 			// This is to work on all types so make it generic
 			void* data = malloc(entry->size);
 			uint32_t i = 0;
@@ -163,6 +163,137 @@ static void completeData(DataTable* dataTable, SymbolTable* symbTable) {
 	// }
 }
 
+static void clearHash(char* expr) {
+	// Using hash indicator for purposes of printing an error
+	bool hash = false;
+	char* tmp = expr;
+	while (*tmp != '\0') {
+		if (*tmp == '#') {
+			if (!hash) handleError(WARN, WARNING, "'#' prefix in expression %s ignored.", expr);
+
+			*tmp = ' ';
+			hash = true;
+		}
+
+		tmp++;
+	}
+}
+
+static void fixInstrs(InstructionStream* instrStream, SymbolTable* symbTable) {
+	/** 
+	 * This function just does the rest regarding IR instructions as described in `handleIR`
+	 * The end goal of this function is:
+	 * `.encoding` is to either be 0x0 or 0x1 indicating I- or R-type
+	 * all immediate operands evaluated, either as pure numbers, symbols, or mixed
+	 * syntax checked
+	 * `.operands` is to have the proper layout with XZ as appropriate:
+	 * 		operands = { xd, xs, xr_or_imm, NULL }
+	 */
+
+
+	for (int i = 0; i < instrStream->size; i++) {
+		instr_obj_t* instrObj = instrStream->instructions[i];
+		// Skip non-IR instrs
+		if (instrObj->encoding != 0x10) continue;
+
+		char* instr = instrObj->instr;
+		char** operands = instrObj->operands;
+
+		// Make sure total length is 4
+		if (operands[3] != NULL) handleError(ERR_INNER, FATAL, "Expected operands[3] to be null, found %s\n", operands[3]);
+
+		// Differentiating between I and R is slightly complex
+		// Checking for '#' is not always truthful, as it is optional in expressions
+		// But checking an existence gives a more easier time for some
+		// Immediates can either exist in index 1 or 2 depending on the instruction (index 1 for not, cmp, mv, mvn)
+
+		char* imm = NULL;
+
+		if (*instr == 'n' || *instr == 'c' || *instr == 'm') {
+			char* immQ = operands[1];
+			// immQ for 'immediate?'
+			
+			// Check if it is I-type by detecting '#'
+			// imm might either be a pure number (has '#'), expression, or a register (meaning R-type)
+			if (*immQ == '#') {
+				// it is a pure number, meaning the instruction is an I-type
+				instrObj->encoding = 0x0;
+				imm = immQ + 1; // skip '#' for eval purposes
+
+				// Adjust locations
+				// not, mv, and mvn don't have a source, only destination and immediate
+				// cmp will be adjusted at the end
+
+				if (*instr != 'c') {
+					operands[2] = operands[1];
+					operands[1] = strdup("xz");
+				}
+			} else {
+				// it is an expression or a register
+				// possible ways to check:
+				// 	attempt to eval, if false, it is a register; however, due to the protocol of eval, encountering a phrase treats it as a symbol
+				// 		meaning it will register the register as a symbol, a big no-no
+				//  check if the first token is the only token or there's more with seperators as the arithmetic operators
+				// However, it still must be evaluated for expressions
+
+				// Find any arith. ops or whitespace
+				size_t count = strspn(immQ, " \t+-*/<>|&~");
+				// If there are any arith. ops, it means it is an expression, meaning I-type
+				if (count > 0) {
+					instrObj->encoding = 0x0;
+					imm = immQ; // imm is actual an expression
+					// Note that the expression might or might not contain '#'
+					// Allow prescence of '#' but clear it out for eval purposes
+					clearHash(imm);
+				} else {
+					// Big assumption it is a register
+					// If assumption is wrong, something wrong went in logic
+					instrObj->encoding = 0x1;
+				}
+			}
+		} else { // possible immediate is in 2
+			char* immQ = operands[2];
+
+			if (*immQ == '#') {
+				// A well-formed regular I-type
+				instrObj->encoding = 0x0;
+				imm = immQ + 1;
+			} else {
+				size_t count = strspn(immQ, " \t+-*/<>|&~");
+				if (count > 0) {
+					instrObj->encoding = 0x0;
+					imm = immQ;
+					clearHash(imm);
+				} else {
+					instrObj->encoding = 0x1;
+				}
+			}
+
+
+			// No need to 
+		}
+
+		// Check imms
+
+		// Make sure state is appropriate
+		if (instrObj->encoding == 0x10) handleError(ERR_INNER, FATAL, "Type marking is 0x10 for %s\n", instrObj->instr);
+		
+		
+		
+		// All but cmp have xd, adjust `cmp` for operands
+		if (*instr == 'c') {
+			// cmp: xz, xs, xr_imm
+			operands[2] = operands[1]; // shift xr_imm
+			operands[1] = operands[0]; // shift xs
+			operands[0] = strdup("xz");
+		}
+
+
+
+
+	}
+}
+
 
 int main(int argc, char const* argv[]) {
 	char* infile = NULL;
@@ -175,7 +306,7 @@ int main(int argc, char const* argv[]) {
 				outbin = optarg;
 				break;
 			case '?':
-				if (optopt == 'o') fprintf(stderr, "Optionc -%c requires an argument.\n", optopt);
+				if (optopt == 'o') fprintf(stderr, "Option -%c requires an argument.\n", optopt);
 				else if (isprint(optopt)) fprintf(stderr, "Unknown option '-%c'.\n", optopt);
 		}
 	}
@@ -310,6 +441,7 @@ int main(int argc, char const* argv[]) {
 
 	resolveSymbols(symbTable);
 	completeData(dataTable, symbTable);
+	fixInstrs(instrStream, symbTable);
 
 	encode(instrStream, symbTable);
 

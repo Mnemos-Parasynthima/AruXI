@@ -7,6 +7,8 @@
 static char buffer[150];
 
 static char* errnames[ERR_MISALIGNMENT+1] = {
+	"WARNING",
+	"INTERNAL ERROR",
 	"MEMORY ERROR",
 	"IO ERROR",
 	"ENTRYPOINT NOT GLOBAL ERROR",
@@ -37,10 +39,10 @@ void handleError(errType err, sevType sev, const char* fmsg, ...) {
 	formatMessage(fmsg, args);
 
 	if (sev == FATAL) {
-		fprintf(stdout, RED "%s: %s" RESET, errnames[err], buffer);
+		fprintf(stderr, RED "%s: %s" RESET, errnames[err], buffer);
 		exit(-1);
 	} else if (sev == WARNING) {
-		fprintf(stdout, YELLOW "%s: %s" RESET, errnames[err], buffer);
+		fprintf(stderr, YELLOW "%s: %s" RESET, errnames[err], buffer);
 		exit(-1);
 	}
 }
