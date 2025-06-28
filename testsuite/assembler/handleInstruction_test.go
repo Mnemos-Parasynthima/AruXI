@@ -214,10 +214,107 @@ func TestHandleI(t *testing.T) {
 
 	sectTable.entries[3].lp += 4
 
+	// @0x18 xor x15, x1, XORD
+	t.Run("6", func(t *testing.T) {
+		instr := "xor"
+		args := "x15, x1, XORD"
+
+		arxsmHandleInstruction(instrStream, symbTable, sectTable, instr, args)
+
+		entry := arxsmGetInstr(instrStream, 0x18)
+		expectedInstr := "xor"
+		expectedOperands := []string{"x15", "x1", "XORD"}
+
+		if (entry == nil) {
+			t.Errorf("%sExpected: entry, Actual: nil%s", RED, RESET)
+		} else {
+			actualInstr := fromCharPGetString(entry.instr)
+			if (actualInstr != expectedInstr) {
+				t.Errorf("%sExpected instruction: %s, Actual instruction: %s%s", RED, expectedInstr, actualInstr, RESET)
+			} else {
+				t.Logf("%sActual instruction: %s%s", GREEN, actualInstr, RESET)
+			}
+
+			actualOperands := getStringArr(entry.operands)
+
+			if (!cmp.Equal(actualOperands, expectedOperands)) {
+				t.Errorf("%sExpected operands: %v, Actual operands: %v%s", RED, expectedOperands, actualOperands, RESET)
+			} else {
+				t.Logf("%sActual operands: %v%s", GREEN, actualOperands, RESET)
+			}
+		}
+	})
+
+	sectTable.entries[3].lp += 4
+
+	// @0x1c mv x20, IMM
+	t.Run("7", func(t *testing.T) {
+		instr := "mv"
+		args := "x20, IMM"
+
+		arxsmHandleInstruction(instrStream, symbTable, sectTable, instr, args)
+
+		entry := arxsmGetInstr(instrStream, 0x1c)
+		expectedInstr := "mv"
+		expectedOperands := []string{"x20", "IMM"}
+
+		if (entry == nil) {
+			t.Errorf("%sExpected: entry, Actual: nil%s", RED, RESET)
+		} else {
+			actualInstr := fromCharPGetString(entry.instr)
+			if (actualInstr != expectedInstr) {
+				t.Errorf("%sExpected instruction: %s, Actual instruction: %s%s", RED, expectedInstr, actualInstr, RESET)
+			} else {
+				t.Logf("%sActual instruction: %s%s", GREEN, actualInstr, RESET)
+			}
+
+			actualOperands := getStringArr(entry.operands)
+
+			if (!cmp.Equal(actualOperands, expectedOperands)) {
+				t.Errorf("%sExpected operands: %v, Actual operands: %v%s", RED, expectedOperands, actualOperands, RESET)
+			} else {
+				t.Logf("%sActual operands: %v%s", GREEN, actualOperands, RESET)
+			}
+		}
+	})
+
+	sectTable.entries[3].lp += 4
+
+	// @0x20 cmp X14	,	 LA
+	t.Run("8", func(t *testing.T) {
+		instr := "cmp"
+		args := "X14\t , LA"
+
+		arxsmHandleInstruction(instrStream, symbTable, sectTable, instr, args)
+
+		entry := arxsmGetInstr(instrStream, 0x20)
+		expectedInstr := "cmp"
+		expectedOperands := []string{"xz", "X14", "LA"}
+
+		if (entry == nil) {
+			t.Errorf("%sExpected: entry, Actual: nil%s", RED, RESET)
+		} else {
+			actualInstr := fromCharPGetString(entry.instr)
+			if (actualInstr != expectedInstr) {
+				t.Errorf("%sExpected instruction: %s, Actual instruction: %s%s", RED, expectedInstr, actualInstr, RESET)
+			} else {
+				t.Logf("%sActual instruction: %s%s", GREEN, actualInstr, RESET)
+			}
+
+			actualOperands := getStringArr(entry.operands)
+
+			if (!cmp.Equal(actualOperands, expectedOperands)) {
+				t.Errorf("%sExpected operands: %v, Actual operands: %v%s", RED, expectedOperands, actualOperands, RESET)
+			} else {
+				t.Logf("%sActual operands: %v%s", GREEN, actualOperands, RESET)
+			}
+		}
+	})
+
 	// Test invalid instructions
 	// Note that invalid instructions are limited, see comment in `handleIR`
-	// @0x18 nop x6, #0x1
-	t.Run("6", func(t *testing.T) {
+	// @0x20 nop x6, #0x1
+	t.Run("9", func(t *testing.T) {
 		if (os.Getenv("FORK") == "1") {
 			instr := "nop"
 			args := "x6, #0x1"
@@ -225,7 +322,7 @@ func TestHandleI(t *testing.T) {
 			arxsmHandleInstruction(instrStream, symbTable, sectTable, instr, args)
 		}
 
-		stdout, stderr, err := runFork(t, "HandleI/6")
+		stdout, stderr, err := runFork(t, "HandleI/9")
 		_ = stdout
 
 		if (err.Error() == "exit status 255" && stderr == "\x1b[31mINVALID SYNTAX ERROR: Unexpected operands: `x6`\n\x1b[0m") {
@@ -235,8 +332,8 @@ func TestHandleI(t *testing.T) {
 		}
 	})
 
-	// @0x18 add
-	t.Run("7", func(t *testing.T) {
+	// @0x20 add
+	t.Run("10", func(t *testing.T) {
 		if (os.Getenv("FORK") == "1") {
 			instr := "add"
 			args := ""
@@ -244,7 +341,7 @@ func TestHandleI(t *testing.T) {
 			arxsmHandleInstruction(instrStream, symbTable, sectTable, instr, args)
 		}
 
-		stdout, stderr, err := runFork(t, "HandleI/7")
+		stdout, stderr, err := runFork(t, "HandleI/10")
 		_ = stdout
 
 		if (err.Error() == "exit status 255" && stderr == "\x1b[31mINVALID SYNTAX ERROR: No destination register for add!\n\x1b[0m") {
@@ -254,8 +351,8 @@ func TestHandleI(t *testing.T) {
 		}
 	})
 
-	// @0x18 mv #0x18
-	t.Run("8", func(t *testing.T) {
+	// @0x20 mv #0x18
+	t.Run("11", func(t *testing.T) {
 		if (os.Getenv("FORK") == "1") {
 			instr := "mv"
 			args := "#0x18"
@@ -263,13 +360,13 @@ func TestHandleI(t *testing.T) {
 			arxsmHandleInstruction(instrStream, symbTable, sectTable, instr, args)
 		}
 
-		stdout, stderr, err := runFork(t, "HandleI/8")
+		stdout, stderr, err := runFork(t, "HandleI/11")
 		_ = stdout
 
 		if (err.Error() == "exit status 255" && stderr == "\x1b[31mINVALID REGISTER ERROR: Register #0x18 is not a valid register!\n\x1b[0m") {
 			t.Logf("%sGot %s with error %s%s", GREEN, err.Error(), stderr, RESET)
 		} else {
-			t.Errorf("%sExpected Invalid Syntax Error, got %s%s", RED, stderr, RESET)
+			t.Errorf("%sExpected Invalid Register Error, got %s%s", RED, stderr, RESET)
 		}
 	})
 
