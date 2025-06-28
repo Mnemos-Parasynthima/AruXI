@@ -232,6 +232,9 @@ static void fixInstrs(InstructionStream* instrStream, SymbolTable* symbTable) {
 		} else { // possible immediate is in 2, aka well-formed (xd, xs, xr_imm)
 			char* immQ = operands[2];
 
+			validateRegister(operands[0]);
+			validateRegister(operands[1]);
+
 			if (isValidRegister(immQ)) {
 				instrObj->encoding = 0x1;
 			} else {

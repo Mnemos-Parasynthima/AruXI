@@ -588,6 +588,12 @@ HANDLE_INSTR(handleIR) {
 
 		operands[count++] = operand;
 	}
+	char* rem = strtok_r(NULL, " \t,", &args);
+
+	// However, all IR instructions have minimum of two operands and max of three
+	if (operands[1] == 0xFEEDFAED) handleError(ERR_INVALID_SYNTAX, FATAL, "Expected operands, got nothing\n");
+	if (rem) handleError(ERR_INVALID_SYNTAX, FATAL, "Unexpected operands: `%s`\n", rem);
+
 
 	instr_obj_t* instrObj = initInstrObj(sectTable->entries[3].lp, NULL, instr, (char**) operands);
 	addInstrObj(instrStream, instrObj);

@@ -384,7 +384,7 @@ func TestHandleI(t *testing.T) {
 		stdout, stderr, err := runFork(t, "HandleI/12")
 		_ = stdout
 
-		if (err.Error() == "exit status 255" && stderr == "\x1b[31mINVALID SYNTAX ERROR: Expected operands\n\x1b[0m") {
+		if (err.Error() == "exit status 255" && stderr == "\x1b[31mINVALID SYNTAX ERROR: Expected operands, got nothing\n\x1b[0m") {
 			t.Logf("%sGot %s with error %s%s", GREEN, err.Error(), stderr, RESET)
 		} else {
 			t.Errorf("%sExpected Invalid Syntax Error, got %s%s", RED, stderr, RESET)
@@ -405,7 +405,7 @@ func TestHandleI(t *testing.T) {
 		stdout, stderr, err := runFork(t, "HandleI/13")
 		_ = stdout
 
-		if (err.Error() == "exit status 255" && stderr == "\x1b[31mINVALID SYNTAX ERROR: Unexpected operands: `x2`\n\x1b[0m") {
+		if (err.Error() == "exit status 255" && stderr == "\x1b[31mINVALID SYNTAX ERROR: Unexpected operands: `#0x10`\n\x1b[0m") {
 			t.Logf("%sGot %s with error %s%s", GREEN, err.Error(), stderr, RESET)
 		} else {
 			t.Errorf("%sExpected Invalid Syntax Error, got %s%s", RED, stderr, RESET)
@@ -604,7 +604,7 @@ func TestHandleR(t *testing.T) {
 		stdout, stderr, err := runFork(t, "HandleR/5")
 		_ = stdout
 
-		if (err.Error() == "exit status 255" && stderr == "\x1b[31mINVALID SYNTAX ERROR: Expected operands\n\x1b[0m") {
+		if (err.Error() == "exit status 255" && stderr == "\x1b[31mINVALID SYNTAX ERROR: Expected operands, got nothing\n\x1b[0m") {
 			t.Logf("%sGot %s with error %s%s", GREEN, err.Error(), stderr, RESET)
 		} else {
 			t.Errorf("%sExpected Invalid Syntax Error, got %s%s", RED, stderr, RESET)
@@ -625,7 +625,7 @@ func TestHandleR(t *testing.T) {
 		stdout, stderr, err := runFork(t, "HandleR/6")
 		_ = stdout
 
-		if (err.Error() == "exit status 255" && stderr == "\x1b[31mINVALID SYNTAX ERROR: Unexpected operands: `x2`\n\x1b[0m") {
+		if (err.Error() == "exit status 255" && stderr == "\x1b[31mINVALID SYNTAX ERROR: Unexpected operands: `x4`\n\x1b[0m") {
 			t.Logf("%sGot %s with error %s%s", GREEN, err.Error(), stderr, RESET)
 		} else {
 			t.Errorf("%sExpected Invalid Syntax Error, got %s%s", RED, stderr, RESET)
