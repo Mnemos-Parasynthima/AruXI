@@ -486,6 +486,15 @@ void validateRegister(char* reg) {
 	handleError(ERR_INVALID_REGISTER, FATAL, "Register %s is not a valid register!\n", reg);
 }
 
+bool isValidRegister(char* reg) {
+	int size = sizeof(VALID_REGISTERS) / sizeof(char*);
+	for (int i = 0; i < size; i++) {
+		if (strcasecmp(VALID_REGISTERS[i], reg) == 0) return true;
+	}
+
+	return false;
+}
+
 void validateImmediate(char* imm, enum ImmediateSize immSize) {
 	if (*imm != '#') handleError(ERR_INVALID_SYNTAX, FATAL, "Immediate %s does not start with '#'!\n", imm);
 

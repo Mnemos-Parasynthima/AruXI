@@ -169,7 +169,7 @@ static void clearHash(char* expr) {
 	char* tmp = expr;
 	while (*tmp != '\0') {
 		if (*tmp == '#') {
-			if (!hash) handleError(WARN, WARNING, "'#' prefix in expression %s ignored.", expr);
+			if (!hash) handleError(WARN, WARNING, "'#' prefix in expression %s ignored.\n", expr);
 
 			*tmp = ' ';
 			hash = true;
@@ -184,7 +184,6 @@ static void fixInstrs(InstructionStream* instrStream, SymbolTable* symbTable) {
 	 * This function just does the rest regarding IR instructions as described in `handleIR`
 	 * The end goal of this function is:
 	 * `.encoding` is to either be 0x0 or 0x1 indicating I- or R-type
-	 * all immediate operands evaluated, either as pure numbers, symbols, or mixed
 	 * syntax checked
 	 * `.operands` is to have the proper layout with XZ as appropriate:
 	 * 		operands = { xd, xs, xr_or_imm, NULL }
@@ -202,95 +201,44 @@ static void fixInstrs(InstructionStream* instrStream, SymbolTable* symbTable) {
 		// Make sure total length is 4
 		if (operands[3] != NULL) handleError(ERR_INNER, FATAL, "Expected operands[3] to be null, found %s\n", operands[3]);
 
-		// Differentiating between I and R is slightly complex
-		// Checking for '#' is not always truthful, as it is optional in expressions
-		// But checking an existence gives a more easier time for some
-		// Immediates can either exist in index 1 or 2 depending on the instruction (index 1 for not, cmp, mv, mvn)
-
-		char* imm = NULL;
-
-		if (*instr == 'n' || *instr == 'c' || *instr == 'm') {
+		// Immediates can either exist in index 1 or 2 depending on the instruction (index 1 for not, mv, mvn)
+		// cmp has its operands adjusted already, so imm in index 2
+		if (*instr == 'n' || *instr == 'm') {
 			char* immQ = operands[1];
 			// immQ for 'immediate?'
-			
-			// Check if it is I-type by detecting '#'
-			// imm might either be a pure number (has '#'), expression, or a register (meaning R-type)
-			if (*immQ == '#') {
-				// it is a pure number, meaning the instruction is an I-type
+
+			if (isValidRegister(immQ)) {
+				instrObj->encoding = 0x1;
+
+				// Adjust locations
+				// mvn doesn't have first source, not and mv as is
+				if (*instr == 'm' && *(instr+2) == 'n') {
+					operands[2] = operands[1];
+					operands[1] = strdup("xz");
+				} else operands[2] = strdup("xz");
+			} else {
 				instrObj->encoding = 0x0;
-				imm = immQ + 1; // skip '#' for eval purposes
+				// Note that expressions (or atomics) might or might not contain '#'
+				// Allow prescence of '#' but clear it out for eval purposes
+				clearHash(immQ);
 
 				// Adjust locations
 				// not, mv, and mvn don't have a source, only destination and immediate
-				// cmp will be adjusted at the end
-
 				if (*instr != 'c') {
 					operands[2] = operands[1];
 					operands[1] = strdup("xz");
 				}
-			} else {
-				// it is an expression or a register
-				// possible ways to check:
-				// 	attempt to eval, if false, it is a register; however, due to the protocol of eval, encountering a phrase treats it as a symbol
-				// 		meaning it will register the register as a symbol, a big no-no
-				//  check if the first token is the only token or there's more with seperators as the arithmetic operators
-				// However, it still must be evaluated for expressions
-
-				// Find any arith. ops or whitespace
-				size_t count = strspn(immQ, " \t+-*/<>|&~");
-				// If there are any arith. ops, it means it is an expression, meaning I-type
-				if (count > 0) {
-					instrObj->encoding = 0x0;
-					imm = immQ; // imm is actual an expression
-					// Note that the expression might or might not contain '#'
-					// Allow prescence of '#' but clear it out for eval purposes
-					clearHash(imm);
-				} else {
-					// Big assumption it is a register
-					// If assumption is wrong, something wrong went in logic
-					instrObj->encoding = 0x1;
-				}
 			}
-		} else { // possible immediate is in 2
+		} else { // possible immediate is in 2, aka well-formed (xd, xs, xr_imm)
 			char* immQ = operands[2];
 
-			if (*immQ == '#') {
-				// A well-formed regular I-type
-				instrObj->encoding = 0x0;
-				imm = immQ + 1;
+			if (isValidRegister(immQ)) {
+				instrObj->encoding = 0x1;
 			} else {
-				size_t count = strspn(immQ, " \t+-*/<>|&~");
-				if (count > 0) {
-					instrObj->encoding = 0x0;
-					imm = immQ;
-					clearHash(imm);
-				} else {
-					instrObj->encoding = 0x1;
-				}
+				instrObj->encoding = 0x0;
+				clearHash(immQ);
 			}
-
-
-			// No need to 
 		}
-
-		// Check imms
-
-		// Make sure state is appropriate
-		if (instrObj->encoding == 0x10) handleError(ERR_INNER, FATAL, "Type marking is 0x10 for %s\n", instrObj->instr);
-		
-		
-		
-		// All but cmp have xd, adjust `cmp` for operands
-		if (*instr == 'c') {
-			// cmp: xz, xs, xr_imm
-			operands[2] = operands[1]; // shift xr_imm
-			operands[1] = operands[0]; // shift xs
-			operands[0] = strdup("xz");
-		}
-
-
-
-
 	}
 }
 

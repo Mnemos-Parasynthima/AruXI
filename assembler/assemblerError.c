@@ -43,6 +43,5 @@ void handleError(errType err, sevType sev, const char* fmsg, ...) {
 		exit(-1);
 	} else if (sev == WARNING) {
 		fprintf(stderr, YELLOW "%s: %s" RESET, errnames[err], buffer);
-		exit(-1);
 	}
 }

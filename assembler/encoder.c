@@ -42,6 +42,11 @@ static uint8_t getRegisterEncoding(char* reg) {
 static uint32_t getImmediateEncoding(char* imm, SymbolTable* symbTable, enum ImmediateSize size) {
 	if (imm == 0xFEEDFAED) return 0;
 
+	// The '#' is already skipped for IR instructions but not for pure I
+	// So far, it is only nop that is pure I
+	if (*imm == '#') imm++;
+
+	
 	bool canEval = true;
 	int32_t res = eval(imm, symbTable, &canEval);
 
@@ -96,7 +101,7 @@ static void encodeI(instr_obj_t* instr, SymbolTable* symbTable) {
 
 	uint8_t rd = getRegisterEncoding(xd);
 	uint8_t rs = getRegisterEncoding(xs);
-	uint16_t imm14 = (uint16_t) getImmediateEncoding(imm+1, symbTable, IMM14);
+	uint16_t imm14 = (uint16_t) getImmediateEncoding(imm, symbTable, IMM14);
 
 	encoding = (opcode << 24) | (imm14 << 10) | (rs << 5) | (rd << 0);
 	instr->encoding = encoding;
