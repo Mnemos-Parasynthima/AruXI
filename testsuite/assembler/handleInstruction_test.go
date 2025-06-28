@@ -370,6 +370,48 @@ func TestHandleI(t *testing.T) {
 		}
 	})
 
+	// @0x20 mvn X4
+	t.Run("12", func(t *testing.T) {
+		if (os.Getenv("FORK") == "1") {
+			instr := "mvn"
+			args := "x4"
+			
+			arxsmHandleInstruction(instrStream, symbTable, sectTable, instr, args)
+			os.Stderr.WriteString("UNREACHABLE: Instruction added")
+			os.Exit(1)
+		}
+
+		stdout, stderr, err := runFork(t, "HandleI/12")
+		_ = stdout
+
+		if (err.Error() == "exit status 255" && stderr == "\x1b[31mINVALID SYNTAX ERROR: Expected operands\n\x1b[0m") {
+			t.Logf("%sGot %s with error %s%s", GREEN, err.Error(), stderr, RESET)
+		} else {
+			t.Errorf("%sExpected Invalid Syntax Error, got %s%s", RED, stderr, RESET)
+		}
+	})
+
+	// @0x20 add X4, x10, x2, #0x10
+	t.Run("13", func(t *testing.T) {
+		if (os.Getenv("FORK") == "1") {
+			instr := "add"
+			args := "X4, x10, x2, #0x10"
+			
+			arxsmHandleInstruction(instrStream, symbTable, sectTable, instr, args)
+			os.Stderr.WriteString("UNREACHABLE: Instruction added")
+			os.Exit(1)
+		}
+
+		stdout, stderr, err := runFork(t, "HandleI/13")
+		_ = stdout
+
+		if (err.Error() == "exit status 255" && stderr == "\x1b[31mINVALID SYNTAX ERROR: Unexpected operands: `x2`\n\x1b[0m") {
+			t.Logf("%sGot %s with error %s%s", GREEN, err.Error(), stderr, RESET)
+		} else {
+			t.Errorf("%sExpected Invalid Syntax Error, got %s%s", RED, stderr, RESET)
+		}
+	})
+
 	arxsmDeleteInstrStream(instrStream)
 	arxsmDeleteSymbTable(symbTable)
 	arxsmDeleteSectionTable(sectTable)
@@ -569,7 +611,7 @@ func TestHandleR(t *testing.T) {
 		}
 	})
 
-	// @0x10 add X4. x10, x2, x4
+	// @0x10 add X4, x10, x2, x4
 	t.Run("6", func(t *testing.T) {
 		if (os.Getenv("FORK") == "1") {
 			instr := "add"
