@@ -12,7 +12,14 @@ package assemblerTests
 #include "../../headers/assembler/SymbolTable.h"
 */
 import "C"
-import "unsafe"
+import (
+	"bytes"
+	"fmt"
+	"os"
+	"os/exec"
+	"testing"
+	"unsafe"
+)
 
 // DataTable.c/h
 
@@ -50,8 +57,12 @@ func arxsmInitInstrStream() *C.InstructionStream {
 	return C.initInstrStream()
 }
 
+func arxsmGetInstr(instrStream *C.InstructionStream, addr C.uint32_t) *C.instr_obj_t {
+	return C.getInstr(instrStream, addr)
+}
+
 func arxsmDisplayInstrStream(instrStream *C.InstructionStream) {
-	C.displayInstrStream(instrStream)
+	C.displayInstrStream(instrStream, false)
 }
 
 func arxsmDeleteInstrStream(instrStream *C.InstructionStream) {
@@ -162,20 +173,52 @@ func arxsmDeleteSymbTable(symbTable *C.SymbolTable) {
 // utils
 
 const (
-	RESET = "\033[0m"
-	RED = "\033[31m"
-	GREEN = "\033[32m"
+	RESET  = "\033[0m"
+	RED    = "\033[31m"
+	GREEN  = "\033[32m"
 	YELLOW = "\033[33m"
 )
 
-func getString(str [8]byte) string {
+func fromSliceGetString(str [8]byte) string {
 	cStr := (**C.char)(unsafe.Pointer(&str[0]))
 
 	return C.GoString(*cStr)
+}
+
+func fromCharPGetString(str *C.char) string {
+	return C.GoString(str)
 }
 
 func getFloatArr(fArr [8]byte, count int) []float32 {
 	cFloat := *(**C.float)(unsafe.Pointer(&fArr[0]))
 
 	return unsafe.Slice((*float32)(unsafe.Pointer(cFloat)), count)
+}
+
+func getStringArr(sArr **C.char) []string {
+	var arr []string
+	temp := sArr
+
+	for *temp != nil {
+		if *temp != (*C.char)(unsafe.Pointer(uintptr(0xFEEDFAED))) {
+			arr = append(arr, C.GoString(*temp))
+		}
+		temp = (**C.char)(unsafe.Pointer(uintptr(unsafe.Pointer(temp)) + unsafe.Sizeof(*sArr)))
+	}
+
+	return arr
+}
+
+// https://willsena.dev/golang-how-to-test-code-that-exits-or-crashes/
+func runFork(t *testing.T, testName string) (string, string, error) {
+	cmd := exec.Command(os.Args[0], fmt.Sprintf("-test.run=%v", testName))
+	cmd.Env = append(os.Environ(), "FORK=1")
+
+	var stdoutB, stderrB bytes.Buffer
+	cmd.Stdout = &stdoutB
+	cmd.Stderr = &stderrB
+
+	err := cmd.Run()
+
+	return stdoutB.String(), stderrB.String(), err
 }
