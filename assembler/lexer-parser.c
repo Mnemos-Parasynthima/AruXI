@@ -609,7 +609,7 @@ HANDLE_INSTR(handleM) {
 	// mem_op reg, [x], y
 
 	// But ld has an exception:
-	// ld reg, imm + 2
+	// ld reg, label
 	// Which decomposes into three instructions: mv -> lsl -> add
 
 	// After getting the destination register,
@@ -617,6 +617,7 @@ HANDLE_INSTR(handleM) {
 	// First will store either x/ir
 	// Second will either store off or 0xFEEDFAED
 	// Third will either store y or NULL
+	// { x_ir, off_0xFEEDFAED, y_NULL }
 
 	char* xd = strtok_r(NULL, " \t,", &args);
 	if (!xd) handleError(ERR_INVALID_SYNTAX, FATAL, "No destination register found for %x!\n", instr);
@@ -624,29 +625,38 @@ HANDLE_INSTR(handleM) {
 
 	char* base = NULL;
 	char* offset = 0xFEEDFAED;
-	char* index = 0xFEEDFAED;
+	char* index = "xz";
 
-	base = strtok_r(NULL, " \t,", &args);
+	// Skip all whitespace until '['
+	// strtok is not used as there is no need to null-terminate early
+	while (isblank(*args)) args++;
+	char* addressing = args;
+	
 	// ld doesn't need [x.., it can also start with a label/immediate
 	if (strcmp(instr, VALID_INSTRUCTIONS[M_TYPE_IDX]) == 0) {
-		if (*base != '[') {
+		if (*addressing != '[') {
 			// In the case that it does start with a label/immediate, do special handling
 			// It can either be just a label or an expression involving a label
 			// Note that the expression could have been cut short with strtok if it was imm + 2 * ....
 			// Recombine
 
-			char* expr = (char*) malloc(sizeof(char) * strlen(base) + strlen(args) + 1);
-			// 
-			sprintf(expr, "%s%s", base, args);
+			char* expr = strtok_r(NULL, ",", &addressing);
+			// expr should be everything after the first ',', addressing should point to the end
+			char* rest = strtok_r(NULL, "", &addressing);
+			if (rest) handleError(ERR_INVALID_SYNTAX, FATAL, "Unexpected operands: `%s`\n", rest);
 			
 			bool evald = true;
 			uint32_t imm = eval(expr, symbTable, &evald);
+			// Note that if eval returns false, it either means a symbol is not found yet or that the expression
+			// 	is invalid, that won't be known until all symbol all gathered
 
 			char immhstr[21];
 			char immlstr[15];
 			uint32_t immh, imml;
 			// If it was able to be evaled, split imm
 			if (evald) {
+				// if (imm > ((1<<(9-1))-1) || imm < -(1<<(9-1))) handleError(ERR_INVALID_SIZE, FATAL, "Invalid size for %x. Expected SIMM9.\n", imm);
+
 				immh = (imm >> 13) & 0x7ffff;
 				imml = (imm >> 0) & 0x1fff;
 
@@ -656,6 +666,7 @@ HANDLE_INSTR(handleM) {
 				// If not (meaning it used an undefined label/symbol), leave it for future evaluation
 				// But keep the need to split imm
 				// TODO
+				// Edit: But how???????
 			}
 
 			char* operands[] = { xd, VALID_REGISTERS[XZ], immhstr, NULL };
@@ -682,41 +693,51 @@ HANDLE_INSTR(handleM) {
 	}
 
 	// Making sure the addressing starts with '['
-	if (*base != '[') handleError(ERR_INVALID_SYNTAX, FATAL, "Invalid memory addressing for %s!\n", instr);
+	if (*addressing != '[') handleError(ERR_INVALID_SYNTAX, FATAL, "Invalid memory addressing. Could not find '['.\n");
 
-	char* offsetIndex = strtok_r(NULL, " \t", &args);
-	// offsetIndex can either be NULL if only [x]
-	// or 'off ]'
-	// or the index register
+	char* end = strchr(addressing, ']');
+	if (!end) handleError(ERR_INVALID_SYNTAX, FATAL, "Invalid memory addressing. Could not find ']'.\n");
 
-	if (*(base+3) == ']' || *(base+4) == ']') {
-		// The first op is [x]
-		// So offsetIndex is either NULL or contains y
-		if (offsetIndex) {
-			index = offsetIndex;
-			// Make sure nothing left
-			char* _nnull = strtok_r(NULL, " \t", &args);
-			if (_nnull) handleError(ERR_INVALID_SYNTAX, FATAL, "Unexpected operands for %s: %s\n", instr, _nnull);
+	// Get everything within "[]"
+	char* dereferenced = strtok_r(NULL, "[]", &addressing);
 
-			validateRegister(index);
-		}
-	} else {
-		offset = offsetIndex;
-		// There is the offset
-		// Take out ]
-		size_t offlen = strlen(offset);
-		if (*(offset+offlen-1) != ']') handleError(ERR_INVALID_SYNTAX, FATAL, "Invalid memory addressing for %s: %s!\n", instr, offset);
-		*(offset+offlen-1) = '\0';
-
-		// validateImmediate(offset, SIMM9);
+	// There might be stuff after [], that being `y`, the index
+	char* sep = strchr(addressing, ',');
+	if (sep) {
+		addressing = sep+1;
+		// form is indexed, expected register after
+		index = strtok_r(NULL, " \t", &addressing);
+		if (!index) handleError(ERR_INVALID_SYNTAX, FATAL, "Invalid memory addressing. Expected index register.\n");
+		validateRegister(index);
+		// Quick hack to check for ',' on index
+		// Better way to check or something
+		sep = strchr(index, ',');
+		if (sep) handleError(ERR_INVALID_SYNTAX, FATAL, "Invalid memory addressing. Unexpected ','.\n");
 	}
 
-	// Take out the square brackets from [x]
-	base++;
-	if (*(base+3) == '\0') *(base+2) = '\0';
-	else if (*(base+4) == '\0') *(base+3) = '\0';
+	char* rest = strtok_r(NULL, " \t,", &addressing);
+	if (rest) handleError(ERR_INVALID_SYNTAX, FATAL, "Invalid memory addressing. Unexpected operands: `%s`\n", rest);
+
+	// index is set, if any
+	// Now to extract base and offset
+
+	sep = strchr(dereferenced, ',');
+	if (sep) {
+		// offset
+		// [ base, #offset ]
+		sep++; // skip ','
+		base = strtok_r(NULL, " \t,", &dereferenced);
+		offset = strtok_r(NULL, " \t", &sep);
+
+	} else {
+		// pure base
+		// Note that there still might be some whitespace when `[   xs  ]`
+		base = strtok_r(NULL, " \t", &dereferenced);
+	}
 
 	validateRegister(base);
+	// Maybe defer offset validation later
+	// validateImmediate(offset, SIMM9);
 
 	char* operands[5] = { xd, base, offset, index, NULL };
 
