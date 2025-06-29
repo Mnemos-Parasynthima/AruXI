@@ -78,7 +78,11 @@ static uint32_t getImmediateEncoding(char* imm, SymbolTable* symbTable, enum Imm
 
 static void encodeI(instr_obj_t* instr, SymbolTable* symbTable) {
 	uint32_t encoding = 0x00000000;
+#ifdef _WIN64
+	uint32_t opcode = 0b00000000;
+#else
 	uint8_t opcode = 0b00000000;
+#endif
 
 	char* instrStr = instr->instr;
 	char** ops = instr->operands;
@@ -118,7 +122,11 @@ static void encodeI(instr_obj_t* instr, SymbolTable* symbTable) {
 
 static void encodeR(instr_obj_t* instr) {
 	uint32_t encoding = 0x00000000;
+#ifdef _WIN64
+	uint32_t opcode = 0b00000000;
+#else
 	uint8_t opcode = 0b00000000;
+#endif
 
 	char* instrStr = instr->instr;
 	char** ops = instr->operands;
@@ -161,7 +169,11 @@ static void encodeR(instr_obj_t* instr) {
 
 static void encodeM(instr_obj_t* instr, SymbolTable* symbTable) {
 	uint32_t encoding = 0x00000000;
-	uint8_t opcode = 0b00000000;
+#ifdef _WIN64
+	uint32_t opcode = 0x00000000;
+#else
+	uint8_t opcode = 0x00000000;
+#endif
 
 	char* instrStr = instr->instr;
 	char** ops = instr->operands;
@@ -202,7 +214,11 @@ static void encodeM(instr_obj_t* instr, SymbolTable* symbTable) {
 
 static void encodeBiBc(instr_obj_t* instr, SymbolTable* symbTable) {
 	uint32_t encoding = 0x00000000;
-	uint8_t opcode = 0b00000000;
+#ifdef _WIN64
+	uint32_t opcode = 0x00000000;
+#else
+	uint8_t opcode = 0x00000000;
+#endif
 
 	char* instrStr = instr->instr;
 	char** ops = instr->operands;
@@ -243,7 +259,11 @@ static void encodeBiBc(instr_obj_t* instr, SymbolTable* symbTable) {
 
 static void encodeBu(instr_obj_t* instr) {
 	uint32_t encoding = 0x00000000;
-	uint8_t opcode = 0b00000000;
+#ifdef _WIN64
+	uint32_t opcode = 0x00000000;
+#else
+	uint8_t opcode = 0x00000000;
+#endif
 
 	char* instrStr = instr->instr;
 	char** ops = instr->operands;

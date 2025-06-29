@@ -1,6 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
+#ifndef _WIN64
 #include <unistd.h>
+#else
+#include "unistd.h"
+#endif
 #include <ctype.h>
 #include <getopt.h>
 #include <string.h>

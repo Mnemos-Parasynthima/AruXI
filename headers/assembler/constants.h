@@ -2,6 +2,8 @@
 #define _CONSTANTS_H_
 
 
+#define PTR(x) ((char*)(x))
+
 static char* VALID_DIRECTIVES[] = {
 	"data", "const", "bss", "text", "set", "glob", "end",
 	"string", "byte", "hword", "word", "float", "zero", "fill", "align",

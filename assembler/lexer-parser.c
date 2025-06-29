@@ -607,7 +607,7 @@ HANDLE_INSTR(handleIR) {
 		validateRegister(xd);
 	} else xd = VALID_REGISTERS[XZ];
 
-	char* operands[] = { xd, 0xFEEDFAED, 0xFEEDFAED, NULL };
+	char* operands[] = { xd, PTR(0xFEEDFAED), PTR(0xFEEDFAED), NULL };
 
 	// The rest of the registers and/or immediates depend on the instruction itself and context
 	// The checking will be done in pass 2
@@ -624,7 +624,7 @@ HANDLE_INSTR(handleIR) {
 	char* rem = strtok_r(NULL, " \t,", &args);
 
 	// However, all IR instructions have minimum of two operands and max of three
-	if (operands[1] == 0xFEEDFAED) handleError(ERR_INVALID_SYNTAX, FATAL, "Expected operands, got nothing\n");
+	if (operands[1] == PTR(0xFEEDFAED)) handleError(ERR_INVALID_SYNTAX, FATAL, "Expected operands, got nothing\n");
 	if (rem) handleError(ERR_INVALID_SYNTAX, FATAL, "Unexpected operands: `%s`\n", rem);
 
 
@@ -657,7 +657,7 @@ HANDLE_INSTR(handleM) {
 	validateRegister(xd);
 
 	char* base = NULL;
-	char* offset = 0xFEEDFAED;
+	char* offset = PTR(0xFEEDFAED);
 	char* index = "xz";
 
 	// Skip all whitespace until '['
