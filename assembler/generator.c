@@ -97,7 +97,7 @@ void writeBinary(AEFbin* bin, char* outbin) {
 	fwrite(bin->dataSect, sizeof(uint8_t), bin->header.dataSize, outfile);
 	fwrite(bin->textSect, sizeof(uint8_t), bin->header.textSize, outfile);
 
-	printf("Wrote to %s!\n", outbin);
+	debug("Wrote to %s!\n", outbin);
 
 	fclose(outfile);
 	free(bin->constSect);

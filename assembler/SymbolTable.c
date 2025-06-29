@@ -66,7 +66,7 @@ symb_entry_t* getSymbEntry(SymbolTable* symbTable, char* name) {
 }
 
 void displaySymbTable(SymbolTable* symbTable) {
-	printf("Symbol Table with %d entries:\n", symbTable->size);
+	debug("Symbol Table with %d entries:\n", symbTable->size);
 	for (int i = 0; i < symbTable->size; i++) {
 		symb_entry_t* entry = symbTable->entries[i];
 		uint32_t flags = entry->flags;
@@ -77,7 +77,7 @@ void displaySymbTable(SymbolTable* symbTable) {
 		uint8_t REFERENCE = GET_REFERENCE(flags);
 		uint8_t DEFINED = GET_DEFINED(flags);
 		
-		printf("%s: ", entry->name);
+		debug("%s: ", entry->name);
 		if (EXPR == 0b1) printf("(%s)\t", entry->expr);
 		else printf("(0x%x)\t", entry->value);
 
@@ -88,7 +88,7 @@ void displaySymbTable(SymbolTable* symbTable) {
 		else sprintf(sectStr, "TEXT");
 
 		// EXPR: (0|1); SECT: (DATA|CONST|BSS|TEXT); TYPE: (ADDR|SET); LOCALITY: (LOC|GLOB); REFERENCE: (0|1); DEFINED: (0|1)
-		printf("EXPR: %d; SECT: %s; TYPE: %s; LOCALITY: %s; REFERENCE: %d; DEFINED: %d\n", 
+		debug("EXPR: %d; SECT: %s; TYPE: %s; LOCALITY: %s; REFERENCE: %d; DEFINED: %d\n", 
 			EXPR, sectStr, ((TYPE == 0b0) ? "ADDR" : "SET"), ((LOCALITY == 0b0) ? "LOC" : "GLOB"), REFERENCE, DEFINED);
 	}
 }

@@ -46,3 +46,14 @@ void handleError(errType err, sevType sev, const char* fmsg, ...) {
 		fprintf(stderr, YELLOW "%s: %s" RESET, errnames[err], buffer);
 	}
 }
+
+void debug(const char* fmsg, ...) {
+#ifdef DEBUG
+	va_list args;
+	va_start(args, fmsg);
+
+	formatMessage(fmsg, args);
+
+	fprintf(stderr, YELLOW "%s" RESET, buffer);
+#endif
+}

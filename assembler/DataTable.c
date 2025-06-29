@@ -44,7 +44,7 @@ void addDataEntry(DataTable* dataTable, data_entry_t* dataEntry, data_sect_type_
 	uint32_t* size = 0;
 	uint32_t* capacity = 0;
 
-	printf("Detected section to add for: %d\n", sectType);
+	debug("Detected section to add for: %d\n", sectType);
 	if (sectType == DATA_SECT) {
 		entries = &dataTable->dataEntries;
 		size = &dataTable->dSize;
@@ -119,33 +119,33 @@ static void displayDataEntry(data_entry_t* dataEntry) {
 			break;
 	}
 
-	printf("\t\tType: %s\n", typeStr);
-	printf("\t\tAddress: 0x%x\n", dataEntry->addr);
-	printf("\t\tSize: 0x%x\n", dataEntry->size);
-	printf("\t\tSource: %s\n", dataEntry->source);
-	// printf("\t\tData: %s\n", dataEntry->data);
+	debug("\t\tType: %s\n", typeStr);
+	debug("\t\tAddress: 0x%x\n", dataEntry->addr);
+	debug("\t\tSize: 0x%x\n", dataEntry->size);
+	debug("\t\tSource: %s\n", dataEntry->source);
+	// debug("\t\tData: %s\n", dataEntry->data);
 }
 
 void displayDataTable(DataTable* dataTable) {
-	printf("Data Table:\n");
+	debug("Data Table:\n");
 
-	printf("\tData (%d entries)\n", dataTable->dSize);
+	debug("\tData (%d entries)\n", dataTable->dSize);
 	for (int i = 0; i < dataTable->dSize; i++) {
 		displayDataEntry(dataTable->dataEntries[i]);
 	}
-	printf("\n");
+	debug("\n");
 	
-	printf("\tConst (%d entries)\n", dataTable->cSize);
+	debug("\tConst (%d entries)\n", dataTable->cSize);
 	for (int i = 0; i < dataTable->cSize; i++) {
 		displayDataEntry(dataTable->constEntries[i]);
 	}
-	printf("\n");
+	debug("\n");
 
-	printf("\tBss (%d entries)\n", dataTable->bSize);
+	debug("\tBss (%d entries)\n", dataTable->bSize);
 	for (int i = 0; i < dataTable->bSize; i++) {
 		displayDataEntry(dataTable->bssEntries[i]);
 	}
-	printf("\n");
+	debug("\n");
 }
 
 void deleteDataTable(DataTable* dataTable) {

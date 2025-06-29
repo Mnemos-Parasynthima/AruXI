@@ -162,7 +162,7 @@ static void setDirective(SymbolTable* symbTable, char* args, uint8_t activeSecti
  * @param args 
  */
 static void globDirective(SymbolTable* symbTable, char* args, uint8_t activeSection) {
-	printf("Setting global %s\n", args);
+	debug("Setting global %s\n", args);
 
 	// args only provides all other tokens/strings after .glob
 	// ensure only one token left: the symbol
@@ -396,7 +396,7 @@ static void alignDirective(SectionTable* sectTable, DataTable* dataTable, char* 
 }
 
 void handleDirective(SymbolTable* symbTable, SectionTable* sectTable, DataTable* dataTable, char* directive, char* args) {
-	printf("\tHandling directive (%s) with args (%s)\n", directive, args);
+	debug("\tHandling directive (%s) with args (%s)\n", directive, args);
 
 	char* temp = directive;
 	TOLOWER(temp);
@@ -454,8 +454,8 @@ static void validateLabel(char* label) {
 }
 
 void handleLabel(SymbolTable* symbTable, SectionTable* sectTable, char** tok, char** save) {
-	printf("\tHandling label (%s)\n", *tok);
-	printf("\tRemaining: (%s)\n", *save);
+	debug("\tHandling label (%s)\n", *tok);
+	debug("\tRemaining: (%s)\n", *save);
 	// Possible states could be:
 	// [label]:\n
 	// [label]: .[directive] [...operands]\n
@@ -468,7 +468,7 @@ void handleLabel(SymbolTable* symbTable, SectionTable* sectTable, char** tok, ch
 
 	symb_entry_t* entry = getSymbEntry(symbTable, label);
 	if (entry) { // Update entry
-		printf("Label exists. Updating record.\n");
+		debug("Label exists. Updating record.\n");
 		entry->value = sectTable->entries[sectTable->activeSection].lp;
 		
 		entry->flags |= (0 << 7); // ensure expression flag is set to 0
@@ -482,7 +482,7 @@ void handleLabel(SymbolTable* symbTable, SectionTable* sectTable, char** tok, ch
 		// Reference is only changed by non-(label ids and .set)
 		entry->flags |= (1 << 0); // Defined is set since it is defined
 	} else {
-		printf("Label does not exist. Creating record.\n");
+		debug("Label does not exist. Creating record.\n");
 		entry = initSymbEntry(label, NULL, sectTable->entries[sectTable->activeSection].lp, CREATE_FLAGS(0, sectTable->activeSection, 0, 0, 0, 1));
 		addSymbEntry(symbTable, entry);
 	}
@@ -837,7 +837,7 @@ HANDLE_INSTR(handleS) { handleError(WARN, WARNING, "S-type instructions not impl
 HANDLE_INSTR(handleF) { handleError(WARN, WARNING, "F-type instructions not implemented!\n"); }
 
 void handleInstruction(InstructionStream* instrStream, SymbolTable* symbTable, SectionTable* sectTable, char* instr, char* args) {
-	printf("\tHandling instruction (%s) with args (%s)\n", instr, args);
+	debug("\tHandling instruction (%s) with args (%s)\n", instr, args);
 
 	// Maybe no need to lower, comparing can be down with strcasecmp
 	// Even encoding uses strcasecmp

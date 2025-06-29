@@ -24,9 +24,9 @@ typedef struct Lexer {
 
 
 #ifdef _WIN64
-char *strndup(const char *s, size_t n) {
+char* strndup(const char* s, size_t n) {
 	size_t len = strnlen(s, n);
-	char *new = malloc(len + 1);
+	char* new = malloc(len + 1);
 	if (!new) return NULL;
 	memcpy(new, s, len);
 	new[len] = '\0';
@@ -53,10 +53,10 @@ static int32_t parse(struct Lexer* lexer, SymbolTable* symbTable, bool* canEval)
 		nextToken(lexer);
 		return tok.val;
 	} else if (tok.type == SYMB) {
-		// printf("Looking for symbol (%s)\n", tok.text);
+		// debug("Looking for symbol (%s)\n", tok.text);
 		symb_entry_t* entry = getSymbEntry(symbTable, tok.text);
 		if (!entry || GET_DEFINED(entry->flags) == 0) {
-			// printf("Symbol not found or defined!\n");
+			// debug("Symbol not found or defined!\n");
 			if (!entry) {
 				uint32_t flags = CREATE_FLAGS(0, 0, 0, 0, 1, 0);
 				entry = initSymbEntry(tok.text, NULL, 0, flags);
@@ -78,7 +78,7 @@ static int32_t parse(struct Lexer* lexer, SymbolTable* symbTable, bool* canEval)
 		} else {
 			res = entry->value;
 		}
-		// printf("Symbol with value of %d\n", res);
+		// debug("Symbol with value of %d\n", res);
 		nextToken(lexer);
 		return res;
 	} else if (tok.type == LPAREN) {
@@ -178,14 +178,14 @@ static void nextToken(struct Lexer* lexer) {
 }
 
 int32_t eval(const char* expr, SymbolTable* symbTable, bool* canEval) {
-	// printf("\t\tEVALUATING (%s)\n", expr);
+	// debug("\t\tEVALUATING (%s)\n", expr);
 
 	struct Lexer lexer = { .input = expr, .pos = 0 };
 	nextToken(&lexer);
 	int32_t res = _eval(&lexer, symbTable, 0, canEval);
 
-	// if (*canEval) printf("\t\t \x1b[32m ABLE TO EVALUATE TO %d \x1b[0m\n", res);
-	// else printf("\t\t \x1b[31m UNABLE TO EVALUATE \x1b[0m\n");
+	// if (*canEval) debug("\t\t \x1b[32m ABLE TO EVALUATE TO %d \x1b[0m\n", res);
+	// else debug("\t\t \x1b[31m UNABLE TO EVALUATE \x1b[0m\n");
 
 	return res;
 }

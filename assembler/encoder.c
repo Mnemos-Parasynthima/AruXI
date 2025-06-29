@@ -13,7 +13,7 @@ enum ImmediateSize {
 	IMM14, SIMM24, SIMM19, SIMM9
 };
 
-#define SHOW_OPERANDS(ops) while (*ops) { if (*ops != 0xFEEDFAED) printf("%s, ", *ops); ops++; }
+#define SHOW_OPERANDS(ops) while (*ops) { if (*ops != 0xFEEDFAED) debug("%s, ", *ops); ops++; }
 
 
 static uint8_t getConditionEncoding(char* cond) {
@@ -89,7 +89,7 @@ static void encodeI(instr_obj_t* instr, SymbolTable* symbTable) {
 
 	char** temp = ops;
 	SHOW_OPERANDS(temp)
-	printf("\n");
+	debug("\n");
 
 	char* xd = ops[0];
 	char* xs = ops[1];
@@ -133,7 +133,7 @@ static void encodeR(instr_obj_t* instr) {
 
 	char** temp = ops;
 	SHOW_OPERANDS(temp)
-	printf("\n");
+	debug("\n");
 
 	char* xd = ops[0];
 	char* xs = ops[1];
@@ -179,8 +179,8 @@ static void encodeM(instr_obj_t* instr, SymbolTable* symbTable) {
 	char** ops = instr->operands;
 
 	char** temp = ops;
-	while (*temp && *temp != 0xFEEDFAED) { printf("%s, ", *temp); temp++; }
-	printf("\n");
+	while (*temp && *temp != 0xFEEDFAED) { debug("%s, ", *temp); temp++; }
+	debug("\n");
 
 	char* xd = ops[0];
 	char* base = ops[1];
@@ -225,7 +225,7 @@ static void encodeBiBc(instr_obj_t* instr, SymbolTable* symbTable) {
 
 	char** temp = ops;
 	SHOW_OPERANDS(temp)
-	printf("\n");
+	debug("\n");
 
 	char* expr = ops[0];
 
@@ -270,7 +270,7 @@ static void encodeBu(instr_obj_t* instr) {
 
 	char** temp = ops;
 	SHOW_OPERANDS(temp)
-	printf("\n");
+	debug("\n");
 
 	char* xd = ops[0];
 
@@ -288,7 +288,7 @@ void encode(InstructionStream* instrStream, SymbolTable* symbTable) {
 	for (int i = 0; i < instrStream->size; i++) {
 		instr_obj_t* instr = instrStream->instructions[i];
 
-		printf("Encoding %s\n", instr->instr);
+		debug("Encoding %s\n", instr->instr);
 
 		switch (instr->encoding) {
 			case 0x0: encodeI(instr, symbTable); break;

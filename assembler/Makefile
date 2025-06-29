@@ -24,7 +24,7 @@ windows: CC = zig cc
 windows: CFLAGS += --target=x86_64-windows
 windows: arxsm
 
-debug: CFLAGS += -g -O0
+debug: CFLAGS += -g -O0 -DDEBUG
 debug: arxsm
 
 lib: $(SRCS)

@@ -21,7 +21,7 @@ InstructionStream* initInstrStream() {
 }
 
 instr_obj_t* initInstrObj(uint32_t addr, char* source, char* instr, char** operands) {
-	printf("\tCreating instruction object for %s\n", instr);
+	debug("\tCreating instruction object for %s\n", instr);
 
 	instr_obj_t* instrObj = (instr_obj_t*) malloc(sizeof(instr_obj_t));
 	if (!instrObj) handleError(ERR_MEM, FATAL, "Could not allocate memory for instruction object!\n");
@@ -89,24 +89,24 @@ instr_obj_t* getInstr(InstructionStream* instrStream, uint32_t addr) {
 }
 
 void displayInstrStream(InstructionStream* instrStream, bool showEncoding) {
-	printf("Instruction Stream (%d instructions):\n", instrStream->size);
+	debug("Instruction Stream (%d instructions):\n", instrStream->size);
 	for (int i = 0; i < instrStream->size; i++) {
 		instr_obj_t* instrObj = instrStream->instructions[i];
 
-		printf("\tInstruction: %s\n", instrObj->instr);
-		printf("\t\tOperands: ");
+		debug("\tInstruction: %s\n", instrObj->instr);
+		debug("\t\tOperands: ");
 		char** temp = instrObj->operands;
 		while (*temp) {
-			if (*temp != 0xFEEDFAED) printf("(%s), ", *temp);
-			else printf("(), ");
+			if (*temp != 0xFEEDFAED) debug("(%s), ", *temp);
+			else debug("(), ");
 
 			temp++;
 		}
-		printf("\n");
+		debug("\n");
 
-		printf("\t\tAddress: 0x%x\n", instrObj->addr);
+		debug("\t\tAddress: 0x%x\n", instrObj->addr);
 
-		if (showEncoding) printf("\t\tEncoding: 0x%x\n", instrObj->encoding);
+		if (showEncoding) debug("\t\tEncoding: 0x%x\n", instrObj->encoding);
 	}
 }
 

@@ -327,12 +327,12 @@ int main(int argc, char const* argv[]) {
 		// if null, it means it did not contain any useful stuff
 
 		if (cleanLine) {
-			printf("CURRENT WORKING SECTION: ");
-			if (sectTable->activeSection == 0) printf("DATA\n");
-			else if (sectTable->activeSection == 1) printf("CONST\n");
-			else if (sectTable->activeSection == 2) printf("BSS\n");
-			else if (sectTable->activeSection == 3) printf("TEXT\n");
-			else printf("UNRECOGNIZED\n");
+			debug("CURRENT WORKING SECTION: ");
+			if (sectTable->activeSection == 0) debug("DATA\n");
+			else if (sectTable->activeSection == 1) debug("CONST\n");
+			else if (sectTable->activeSection == 2) debug("BSS\n");
+			else if (sectTable->activeSection == 3) debug("TEXT\n");
+			else debug("UNRECOGNIZED\n");
 
 			lpEntry->value = sectTable->entries[sectTable->activeSection].lp;
 			lpEntry->flags = CREATE_FLAGS(0,sectTable->activeSection,0,0,1,1);
@@ -342,7 +342,7 @@ int main(int argc, char const* argv[]) {
 			char* tok = strtok_r(cleanLine, " \t", &saveptr);
 			size_t tokLen = strlen(tok);
 
-			printf("Working on (%s) (%s)\n", tok, saveptr);
+			debug("Working on (%s) (%s)\n", tok, saveptr);
 
 			// bool seqDirective
 			if (*(tok+tokLen-1) == ':') {
@@ -378,12 +378,12 @@ int main(int argc, char const* argv[]) {
 	sectTable->entries[2].size = sectTable->entries[2].lp - 0x20040000;
 	sectTable->entries[3].size = sectTable->entries[3].lp - 0x20190000;
 
-	printf("\n");
+	debug("\n");
 	displaySymbTable(symbTable);
 	displayDataTable(dataTable);
 	displaySectionTable(sectTable);
 	// displayInstrStream(instrStream, false);
-	printf("\n");
+	debug("\n");
 	
 	// Confirms existence of text section and _init label (and marked global) at text, undefined (but referenced) symbols
 
@@ -409,7 +409,7 @@ int main(int argc, char const* argv[]) {
 
 	encode(instrStream, symbTable);
 
-	printf("\n");
+	debug("\n");
 	displayInstrStream(instrStream, true);
 
 	AEFbin* bin = generateBinary(instrStream, symbTable, dataTable, sectTable);
