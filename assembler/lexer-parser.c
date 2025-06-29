@@ -362,8 +362,40 @@ static void zeroDirective(SectionTable* sectTable, DataTable* dataTable, SymbolT
 	// addDataEntry(dataTable, entry, (data_sect_type_t) sectTable->activeSection);
 }
 
-// TODO
-static void fillDirective(SectionTable* sectTable, DataTable* dataTable, char* args) {}
+static void fillDirective(SectionTable* sectTable, DataTable* dataTable, char* args) {
+	validateSection(FILL, sectTable->activeSection);
+
+	char* _len = strtok_r(NULL, ",", &args);
+	if (!_len) handleError(ERR_INVALID_SYNTAX, FATAL, "Length not found for fill!\n");
+
+	char* _num = strtok_r(NULL, " \t", &args);
+	if (!_num) handleError(ERR_INVALID_SYNTAX, FATAL, "Number not found for fill!\n");
+
+	// For now, labels cannot be used for len
+	// Maybe a solution later on
+
+	bool canEval = true;
+	uint32_t len = eval(_len, NULL, &canEval);
+	if (!canEval) handleError(ERR_INVALID_SYNTAX, FATAL, "Cannot use labels for fill len: `%s`\n", _len);
+
+	// Since fill creates bytes, do the same thing as the byte directive
+	// Create artificial exprs
+	size_t _numLen = strlen(_num);
+	char* temp = (char*) malloc(sizeof(char) * (_numLen+1) * len + 1);
+	if (!temp) handleError(ERR_MEM, FATAL, "");
+
+	// Need to create it such that `"[_num],[_num],[_num],..."`
+
+	char buffer[_numLen+1];
+	sprintf(buffer, "%s,", _num);
+	for (int i = 0; i < len; i++) {
+		strcat(temp, buffer);
+	}
+
+	data_entry_t* entry = initDataEntry(1, sectTable->entries[sectTable->activeSection].lp, len, temp, NULL);
+	sectTable->entries[sectTable->activeSection].lp += (len*1);
+	addDataEntry(dataTable, entry, (data_sect_type_t) sectTable->activeSection);
+}
 
 // TODO
 static void alignDirective(SectionTable* sectTable, DataTable* dataTable, char* args) {}
@@ -392,7 +424,7 @@ void handleDirective(SymbolTable* symbTable, SectionTable* sectTable, DataTable*
 		case WORD: wordDirective(sectTable, dataTable, args); break;
 		case FLOAT: floatDirective(sectTable, dataTable, args); break;
 		// case ZERO: zeroDirective(sectTable, dataTable, symbTable, args); break;
-		// case FILL: fillDirective(sectTable, dataTable, args); break;
+		case FILL: fillDirective(sectTable, dataTable, args); break;
 
 		// case ALIGN: alignDirective()
 

@@ -34,7 +34,7 @@ data_entry_t* initDataEntry(uint8_t type, uint32_t addr, uint32_t size, char* so
 	dataEntry->size = size;
 	dataEntry->source = (char*) malloc(sizeof(char) * strlen(source) + 1);
 	strcpy(dataEntry->source, source);
-	dataEntry->data.bytes = data;	// Assuming it has been allocated
+	dataEntry->data._data = data;	// Assuming it has been allocated
 
 	return dataEntry;
 }

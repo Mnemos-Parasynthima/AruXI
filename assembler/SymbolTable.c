@@ -56,6 +56,8 @@ void updateSymbEntry(symb_entry_t* symbEntry, uint32_t value, uint32_t flags) {
 }
 
 symb_entry_t* getSymbEntry(SymbolTable* symbTable, char* name) {
+	if (!symbTable) return NULL;
+
 	for (int i = 0; i < symbTable->size; i++) {
 		if (strcmp(symbTable->entries[i]->name, name) == 0) return symbTable->entries[i];
 	}
