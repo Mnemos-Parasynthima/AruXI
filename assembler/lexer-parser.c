@@ -468,6 +468,12 @@ void handleLabel(SymbolTable* symbTable, SectionTable* sectTable, char** tok, ch
 
 
 static int validateInstruction(char* instr) {
+	// Quick hack, b{cond} is not detected normally due to {cond}
+	// Easy way is to check if instr starts with 'b' as no other isntructions start with 'b' (as of now)
+	// The rest can be checked if it's a valid condition by Bc
+	if (*instr == 'b') return Bc_TYPE_IDX;
+
+
 	int size = sizeof(VALID_INSTRUCTIONS) / sizeof(char*);
 	for (int i = 0; i < size; i++) {
 		if (strcmp(VALID_INSTRUCTIONS[i], instr) == 0) return i;	
@@ -750,7 +756,10 @@ HANDLE_INSTR(handleM) {
 HANDLE_INSTR(handleBi) {
 	char* expr = strtok_r(NULL, " \t", &args);
 	if (!expr) handleError(ERR_INVALID_SYNTAX, FATAL, "Label not found for %s!\n", instr);
-	if (*expr == '#') handleError(ERR_INVALID_SYNTAX, FATAL, "Bad expression for %s!\n", expr);
+	if (*expr == '#') handleError(ERR_INVALID_SYNTAX, FATAL, "Cannot use immediate %s!\n", expr);
+
+	char* rest = strtok_r(NULL, " \t,", &args);
+	if (rest) handleError(ERR_INVALID_SYNTAX, FATAL, "Unexpected operands: `%s`\n", rest);
 
 	// args can either be a label in itself or an expression
 	// Either way, it may contain undefined (as of now) labels
