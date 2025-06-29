@@ -476,7 +476,7 @@ static int validateInstruction(char* instr) {
 
 	int size = sizeof(VALID_INSTRUCTIONS) / sizeof(char*);
 	for (int i = 0; i < size; i++) {
-		if (strcmp(VALID_INSTRUCTIONS[i], instr) == 0) return i;	
+		if (strcasecmp(VALID_INSTRUCTIONS[i], instr) == 0) return i;	
 	}
 
 	handleError(ERR_INVALID_INSTRUCTION, FATAL, "Instruction %s is not valid!\n", instr);
@@ -802,11 +802,19 @@ HANDLE_INSTR(handleBc) {
 	handleBi(instrStream, symbTable, sectTable, instr, args);
 }
 
+HANDLE_INSTR(handleS) {}
+
+HANDLE_INSTR(handleF) {}
+
 void handleInstruction(InstructionStream* instrStream, SymbolTable* symbTable, SectionTable* sectTable, char* instr, char* args) {
 	printf("\tHandling instruction (%s) with args (%s)\n", instr, args);
 
-	char* temp = instr;
-	TOLOWER(temp);
+	// Maybe no need to lower, comparing can be down with strcasecmp
+	// Even encoding uses strcasecmp
+	// Or maybe, lower everything here so all others can use strcmp
+	// Is the overhead that strcasecmp has worth it???
+	// char* temp = instr;
+	// TOLOWER(temp);
 	// Make sure instr is valid
 	int index = validateInstruction(instr);
 
@@ -822,5 +830,6 @@ void handleInstruction(InstructionStream* instrStream, SymbolTable* symbTable, S
 	else if (index >= Bi_TYPE_IDX && index < Bu_TYPE_IDX) handleBi(instrStream, symbTable, sectTable, instr, args);
 	else if (index >= Bu_TYPE_IDX && index < Bc_TYPE_IDX) handleBu(instrStream, symbTable, sectTable, instr, args);
 	else if (index >= Bc_TYPE_IDX && index < S_TYPE_IDX) handleBc(instrStream, symbTable, sectTable, instr, args);
-	else if (index >= S_TYPE_IDX && index < F_TYPE_IDX) {}
+	else if (index >= S_TYPE_IDX && index < F_TYPE_IDX) handleS(instrStream, symbTable, sectTable, instr, args);
+	else if (index >= F_TYPE_IDX) handleF(instrStream, symbTable, sectTable, instr, args);
 }
