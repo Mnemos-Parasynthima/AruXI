@@ -17,7 +17,16 @@ enum ImmediateSize {
 
 
 static uint8_t getConditionEncoding(char* cond) {
+	// Encoding perfectly matches with its position in the array
+	uint8_t size = sizeof(VALID_CONDS) / sizeof(char*);
+	for (uint8_t i = 0; i < size; i++) {
+		if (strcmp(VALID_CONDS[i], cond) == 0) {
+			return i;
+		}
+	}
 
+	handleError(ERR_INNER, FATAL, "Something went wrong in getConditionEncoding!\n");
+	return -1;
 }
 
 static uint8_t getRegisterEncoding(char* reg) {
@@ -262,25 +271,12 @@ void encode(InstructionStream* instrStream, SymbolTable* symbTable) {
 		printf("Encoding %s\n", instr->instr);
 
 		switch (instr->encoding) {
-			case 0x0:
-				encodeI(instr, symbTable);
-				break;
-			case 0x1:
-				encodeR(instr);
-				break;
-			case 0x2:
-				encodeM(instr, symbTable);
-				break;
-			case 0x3:
-				encodeBiBc(instr, symbTable);
-				break;
-			case 0x4:
-				encodeBu(instr);
-				break;
-			case 0x10:
-				
-			default:
-				break;
+			case 0x0: encodeI(instr, symbTable); break;
+			case 0x1: encodeR(instr); break;
+			case 0x2: encodeM(instr, symbTable); break;
+			case 0x3: encodeBiBc(instr, symbTable); break;
+			case 0x4: encodeBu(instr); break;				
+			default: break;
 		}
 	}
 }

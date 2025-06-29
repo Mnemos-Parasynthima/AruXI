@@ -391,7 +391,9 @@ static void fillDirective(SectionTable* sectTable, DataTable* dataTable, char* a
 }
 
 // TODO
-static void alignDirective(SectionTable* sectTable, DataTable* dataTable, char* args) {}
+static void alignDirective(SectionTable* sectTable, DataTable* dataTable, char* args) {
+	handleError(WARN, WARNING, ".align handling not implemented!\n");
+}
 
 void handleDirective(SymbolTable* symbTable, SectionTable* sectTable, DataTable* dataTable, char* directive, char* args) {
 	printf("\tHandling directive (%s) with args (%s)\n", directive, args);
@@ -419,7 +421,7 @@ void handleDirective(SymbolTable* symbTable, SectionTable* sectTable, DataTable*
 		case ZERO: zeroDirective(sectTable, dataTable, symbTable, args); break;
 		case FILL: fillDirective(sectTable, dataTable, args); break;
 
-		// case ALIGN: alignDirective()
+		case ALIGN: alignDirective(sectTable, dataTable, args); break;
 
 		default:
 			break;
@@ -433,8 +435,8 @@ static void validateLabel(char* label) {
 	if (!isalpha(*label) && *label != '_') handleError(ERR_INVALID_LABEL, FATAL, "Label %s cannot begin with `%c`!\n", label, *label);
 
 	// Make sure it is not the name of an directive, instruction, or register
-	bool invalid = false;
-	char* temp = NULL;
+	// bool invalid = false;
+	// char* temp = NULL;
 	int size = sizeof(VALID_DIRECTIVES) / sizeof(char*);
 	for (int i = 0; i < size; i++) {
 		if (strcasecmp(label, VALID_DIRECTIVES[i]) == 0) handleError(ERR_INVALID_LABEL, FATAL, "Label %s cannot be a directive!\n", label);
@@ -819,7 +821,10 @@ HANDLE_INSTR(handleBc) {
 	bool valid = false;
 	int size = sizeof(VALID_CONDS) / sizeof(char*);
 	for (int i = 0; i < size; i++) {
-		if (strcmp(VALID_CONDS[i], instr+1) == 0) valid = true;
+		if (strcasecmp(VALID_CONDS[i], instr+1) == 0) {
+			valid = true;
+			break;
+		}
 	}
 
 	if (!valid) handleError(ERR_INVALID_INSTRUCTION, FATAL, "Condition %s is not valid!\n", instr+1);
@@ -827,9 +832,9 @@ HANDLE_INSTR(handleBc) {
 	handleBi(instrStream, symbTable, sectTable, instr, args);
 }
 
-HANDLE_INSTR(handleS) {}
+HANDLE_INSTR(handleS) { handleError(WARN, WARNING, "S-type instructions not implemented!\n"); }
 
-HANDLE_INSTR(handleF) {}
+HANDLE_INSTR(handleF) { handleError(WARN, WARNING, "F-type instructions not implemented!\n"); }
 
 void handleInstruction(InstructionStream* instrStream, SymbolTable* symbTable, SectionTable* sectTable, char* instr, char* args) {
 	printf("\tHandling instruction (%s) with args (%s)\n", instr, args);
