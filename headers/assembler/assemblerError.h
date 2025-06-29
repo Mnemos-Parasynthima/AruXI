@@ -40,4 +40,8 @@ typedef enum {
 
 void handleError(errType err, sevType sev, const char* fmsg, ...);
 
+/** **/
+
+void debug(const char* fmsg, ...);
+
 #endif
