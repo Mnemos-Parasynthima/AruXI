@@ -164,8 +164,12 @@ static void completeData(DataTable* dataTable, SymbolTable* symbTable) {
 }
 
 static void clearHash(char* expr) {
-	// Using hash indicator for purposes of printing an error
+	// Using hash indicator for purposes of printing an error so it doesn't get printed multiple times for the same expr
+	// However, don't print it if expr is an atomic number
 	bool hash = false;
+
+	if (strspn(expr, "+-*/|&^<>") == 0) hash = true;
+
 	char* tmp = expr;
 	while (*tmp != '\0') {
 		if (*tmp == '#') {

@@ -55,11 +55,11 @@ static uint32_t getImmediateEncoding(char* imm, SymbolTable* symbTable, enum Imm
 	// Ensure sizes are appropriate
 	switch (size)	{
 		case IMM14:
-			if ((res & 0xc000L) != 0x0) handleError(ERR_INVALID_SIZE, FATAL, "Immediate %d exceeds allowed size!\n", res);
+			if ((res & 0xc000L) != 0x0) handleError(ERR_INVALID_SIZE, FATAL, "Immediate %d exceeds allowed size of IMM14!\n", res);
 		case SIMM24:
-			if ((res & 0xf000000L) != 0x0) handleError(ERR_INVALID_SIZE, FATAL, "Immediate %d exceeds allowed size!\n", res);
+			if ((res & 0xf000000L) != 0x0) handleError(ERR_INVALID_SIZE, FATAL, "Immediate %d exceeds allowed size of SIMM24!\n", res);
 		case SIMM19:
-			if ((res & 0x80000L) != 0x0) handleError(ERR_INVALID_SIZE, FATAL, "Immediate %d exceeds allowed size!\n", res);
+			if ((res & 0x80000L) != 0x0) handleError(ERR_INVALID_SIZE, FATAL, "Immediate %d exceeds allowed size of SIMM19!\n", res);
 		default:
 			break;
 	}
@@ -207,24 +207,26 @@ static void encodeBiBc(instr_obj_t* instr, SymbolTable* symbTable) {
 	bool canEval = true;
 	int32_t simm = eval(expr, symbTable, &canEval);
 	if (!canEval) handleError(ERR_INVALID_EXPRESSION, FATAL, "Could not evaluate label %s!\n", expr);
-	if (simm % 4 != 0) handleError(ERR_INVALID_EXPRESSION, FATAL, "Immediate %d is not aligned to 4!\n", simm);
+	if (simm % 4 != 0) handleError(ERR_INVALID_EXPRESSION, FATAL, "Immediate %x is not aligned to 4!\n", simm);
 
 	// The encoding of the jump is (@ - IMM) / 4
 	uint32_t addr = instr->addr;
-	int32_t offset = (addr - simm) / 4;
+	// Use the correct difference depending whether the target address is higher than current or not
+	uint32_t diff = (addr > simm) ? (addr-simm) : (simm-addr);
+	int32_t offset = (diff) / 4;
 
 	uint8_t shift = 0x0;
 	uint8_t cond = 0x0;
 	if (strcasecmp(instrStr, VALID_INSTRUCTIONS[UB]) == 0) opcode = 0b11000000;
 	else if (strcasecmp(instrStr, VALID_INSTRUCTIONS[CALL]) == 0) opcode = 0b11000110;
 	else if (*instrStr == 'b') { //b{cond}
-		if ((offset & 0x80000L) != 0x0) handleError(ERR_INVALID_SIZE, FATAL, "Offset %d exceeds allowed size!\n", offset);
+		if ((offset & 0x80000L) != 0x0) handleError(ERR_INVALID_SIZE, FATAL, "Offset %x exceeds allowed size!\n", offset);
 		opcode = 0b11000100;
 		shift = 5;
 		cond = getConditionEncoding(instrStr+1);
 	}
 
-	if ((offset & 0xf000000L) != 0x0) handleError(ERR_INVALID_SIZE, FATAL, "Offset %d exceeds allowed size!\n", offset);
+	if ((offset & 0xf000000L) != 0x0) handleError(ERR_INVALID_SIZE, FATAL, "Offset %x exceeds allowed size!\n", offset);
 
 	encoding = (opcode << 24) | (offset << shift) | (cond);
 	instr->encoding = encoding;
