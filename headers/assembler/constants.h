@@ -5,7 +5,7 @@
 static char* VALID_DIRECTIVES[] = {
 	"data", "const", "bss", "text", "set", "glob", "end",
 	"string", "byte", "hword", "word", "float", "zero", "fill", "align",
-	// "entry", "size"
+	// "size", "extern", "type"
 };
 
 // The array is to be ordered by instruction types!!!

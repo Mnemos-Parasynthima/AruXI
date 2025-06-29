@@ -7,6 +7,7 @@
 typedef struct AEF {
 	uint8_t ID[4];
 	uint32_t entry;
+	uint32_t bssSize;
 	uint32_t constOff;
 	uint32_t constSize;
 	uint32_t dataOff;

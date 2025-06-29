@@ -17,6 +17,8 @@
 #include "generator.h"
 
 
+bool halt; // To stop assembling in case of `.end`
+
 static void resolveSymbols(SymbolTable* symbTable) {
 	// printf("Resolving symbols!\n");
 
@@ -42,7 +44,7 @@ static void resolveSymbols(SymbolTable* symbTable) {
 
 
 static void completeData(DataTable* dataTable, SymbolTable* symbTable) {
-	// .byte, .hword, and .word are the only ones that left `data blank
+	// .byte, .hword, and .word are the only ones that left `data` blank
 	// placed in `source`
 	// To determine if the data entry is to be completed, either `data` can be checked if NULL
 	// or `type`
@@ -158,9 +160,8 @@ static void completeData(DataTable* dataTable, SymbolTable* symbTable) {
 		}
 	}
 
-	// for (int i = 0; i < dataTable->bSize; i++) {
-		
-	// }
+	// Currently, only .zero is available for bss, and no need to complete data
+	// for (int i = 0; i < dataTable->bSize; i++) {}
 }
 
 static void clearHash(char* expr) {
@@ -312,6 +313,8 @@ int main(int argc, char const* argv[]) {
 	char* line = NULL;
 	size_t n;
 
+	halt = false;
+
 	ssize_t read = getline(&line, &n, source);
 	while (read != -1) {
 		char* cleanLine = preprocess(line, read);
@@ -357,6 +360,8 @@ int main(int argc, char const* argv[]) {
 					// Increment LP by instruction size
 					sectTable->entries[3].lp += 4;
 				}
+
+				if (halt) break;
 			}
 		}
 

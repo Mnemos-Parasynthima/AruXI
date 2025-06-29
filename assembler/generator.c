@@ -58,6 +58,7 @@ AEFbin* generateBinary(InstructionStream* instrStream, SymbolTable* symbTable, D
 	AEFheader header = {
 		.ID = {0xAE, 'A', 'E', 'F'},
 		.entry = getSymbEntry(symbTable, "_init")->value,
+		.bssSize = sectTable->entries[2].size,
 		.constOff = 32,
 		.constSize = sectTable->entries[1].size,
 		.dataOff = 32 + sectTable->entries[1].size,

@@ -12,6 +12,8 @@
 #include "evaluator.h"
 
 
+extern bool halt;
+
 enum DirectiveIndex {
 	DATA,
 	CONST,
@@ -58,6 +60,9 @@ static void validateSection(enum DirectiveIndex directiveType, uint8_t activeSec
 			} else if (activeSection == 3) {
 				handleError(ERR_DIRECTIVE_NOT_ALLOWED, FATAL, "Directive .%s is not allowed for text section!\n", VALID_DIRECTIVES[directiveType]);
 			}
+			break;
+		case ZERO:
+			if (activeSection != 2) handleError(WARN, WARNING, "Consider using .zero in bss!\n");
 			break;
 		default: break;
 	}
@@ -177,6 +182,13 @@ static void globDirective(SymbolTable* symbTable, char* args, uint8_t activeSect
 		entry = initSymbEntry(symbol, NULL, 0, flags);
 		addSymbEntry(symbTable, entry);
 	}
+}
+
+static void endDirective(char* args) {
+	char* rest = strtok_r(NULL, " \t,", &args);
+	if (rest) handleError(ERR_INVALID_SYNTAX, FATAL, "Unexpected operands: `%s`\n", rest);
+
+	halt = true;
 }
 
 static void stringDirective(SectionTable* sectTable, DataTable* dataTable, char* args) {
@@ -321,45 +333,26 @@ static void floatDirective(SectionTable* sectTable, DataTable* dataTable, char* 
 	addDataEntry(dataTable, entry, (data_sect_type_t) sectTable->activeSection);
 }
 
-// TODO
 static void zeroDirective(SectionTable* sectTable, DataTable* dataTable, SymbolTable* symbTable, char* args) {
 	validateSection(ZERO, sectTable->activeSection);
-
-	// args is in the form expr, size
-	// 
-
-	// expr   			,  		 	size ->> expr\0,  		 	size
-	// expr,		size ->> expr,\0size
-	// expr   	, size ->> expr\0, size
-	// expr	 	  , ->> expr\0,
-	// expr, ->> expr,\0
-	// expr ->> expr\0
 
 	size_t argsLen = strlen(args);
 	char* temp = (char*) malloc(sizeof(char) * argsLen+1);
 	if (!temp) handleError(ERR_MEM, FATAL, "");
 	strcpy(temp, args);
 
-	// Get the first arg, that is, the expression resulting in how many zeros
-	char* expr = strtok(temp, " \t");
-	if (!expr) handleError(ERR_INVALID_SYNTAX, FATAL, "expr not found in %s! Syntax is `expr, size`.\n", args);
+	char* _size = strtok_r(NULL, " \t", &args);
+	if (!_size) handleError(ERR_INVALID_SYNTAX, FATAL, "Expected `size`!\n");
 
-	// Ge the second arg, that is, the size
-	char* size = strtok(NULL, " \t");
-
-	void* data = NULL;
 	bool canEval = true;
-	int32_t len = eval(expr, symbTable, &canEval);
-	// If it cannot be evaluated, leave it NULL and for pass 2 to complete it
-	if (canEval) {
+	int32_t size = eval(_size, symbTable, &canEval);
+	if (!canEval) handleError(ERR_INVALID_EXPRESSION, FATAL, "Expression must contain defined symbols!\n");
 
-	}
+	uint8_t* data = calloc(size, sizeof(uint8_t));
 
-	// 
-
-	// data_entry_t* entry = initDataEntry(type, sectTable->entries[sectTable->activeSection].lp, size, args, data);
-	// sectTable->entries[sectTable->activeSection].lp += size;
-	// addDataEntry(dataTable, entry, (data_sect_type_t) sectTable->activeSection);
+	data_entry_t* entry = initDataEntry(1, sectTable->entries[sectTable->activeSection].lp, size, temp, (void*)data);
+	sectTable->entries[sectTable->activeSection].lp += size;
+	addDataEntry(dataTable, entry, (data_sect_type_t) sectTable->activeSection);
 }
 
 static void fillDirective(SectionTable* sectTable, DataTable* dataTable, char* args) {
@@ -416,14 +409,14 @@ void handleDirective(SymbolTable* symbTable, SectionTable* sectTable, DataTable*
 		case SET: setDirective(symbTable, args, sectTable->activeSection); break;
 		case GLOB: globDirective(symbTable, args, sectTable->activeSection); break;
 
-		// case END:
+		case END: endDirective(args); break;
 
 		case STRING: stringDirective(sectTable, dataTable, args); break;
 		case BYTE: byteDirective(sectTable, dataTable, args); break;
 		case HWORD: hwordDirective(sectTable, dataTable, args); break;
 		case WORD: wordDirective(sectTable, dataTable, args); break;
 		case FLOAT: floatDirective(sectTable, dataTable, args); break;
-		// case ZERO: zeroDirective(sectTable, dataTable, symbTable, args); break;
+		case ZERO: zeroDirective(sectTable, dataTable, symbTable, args); break;
 		case FILL: fillDirective(sectTable, dataTable, args); break;
 
 		// case ALIGN: alignDirective()
