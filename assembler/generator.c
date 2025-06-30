@@ -20,9 +20,10 @@ static void generateData(AOEFbin* bin, DataTable* dataTable) {
 
 	// data section might not even be present, skip
 	if (!dataHeader) return;
+	if (dataHeader->shSectSize == 0) return;
 
 	uint8_t* dataSect = malloc(sizeof(uint8_t) * dataHeader->shSectSize);
-	//
+	if (!dataSect) handleError(ERR_MEM, FATAL, "Could not allocate memory for data section!\n");
 
 	uint32_t pos = 0x0;
 	for (int i = 0; i < dataTable->dSize; i++) {
@@ -51,9 +52,10 @@ static void generateConst(AOEFbin* bin, DataTable* dataTable) {
 
 	// const section might not even be present, skip
 	if (!constHeader) return;
+	if (constHeader->shSectSize == 0) return;
 
 	uint8_t* constSect = malloc(sizeof(uint8_t) * constHeader->shSectSize);
-	//
+	if (!constSect) handleError(ERR_MEM, FATAL, "Could not allocate memory for const section!\n");
 
 	uint32_t pos = 0x0;
 	for (int i = 0; i < dataTable->cSize; i++) {
@@ -69,6 +71,8 @@ static void generateConst(AOEFbin* bin, DataTable* dataTable) {
 }
 
 static void generateText(AOEFbin* bin, InstructionStream* instrStream) {
+	if (instrStream->size == 0) return;
+
 	// AOEFFSectHeader* textHeader = NULL;
 
 	// for (int i = 0; i < 4; i++) {
@@ -86,7 +90,7 @@ static void generateText(AOEFbin* bin, InstructionStream* instrStream) {
 	// The number of bytes taken by the text section can either be the number of instructions * 4 bytes
 	// or the total size in bytes using sectHeader
 	uint32_t* textSect = malloc(sizeof(uint32_t) * instrStream->size);
-	//
+	if (!textSect) handleError(ERR_MEM, FATAL, "Could not allocate memory for text section!\n");
 
 	uint32_t pos = 0x0;
 	for (int i = 0; i < instrStream->size; i++) {
@@ -102,11 +106,8 @@ static void generateText(AOEFbin* bin, InstructionStream* instrStream) {
 static uint32_t getSymbolStringsSize(SymbolTable* symbTable) {
 	uint32_t size = 0;
 
-	for (int i = 0; i < symbTable->size; i++) {
+	for (int i = 1; i < symbTable->size; i++) {
 		symb_entry_t* entry = symbTable->entries[i];
-
-		// Skip LP
-		if (*entry->name == '@') continue;
 
 		size_t len = strlen(entry->name);
 
@@ -176,8 +177,8 @@ static void generateSectionHeaders(AOEFbin* bin, SectionTable* sectTable) {
 
 	uint32_t offset = baseOffset;
 
-	int i = 0;
-	for (; i < 4; i++) {
+	int sectIdx = 0;
+	for (int i = 0; i < 4; i++) {
 		section_entry_t entry = sectTable->entries[i];
 		if (!entry.present) continue;
 
@@ -187,23 +188,26 @@ static void generateSectionHeaders(AOEFbin* bin, SectionTable* sectTable) {
 		else if (i == 2) sectName = ".bss";
 		else sectName = ".text";
 
-		strncpy(sectHeaders[i].shSectName, sectName, 8);
-		sectHeaders[i].shSectSize = entry.size;
-		sectHeaders[i].shSectOff = offset;
+		strncpy(sectHeaders[sectIdx].shSectName, sectName, 8);
+		sectHeaders[sectIdx].shSectSize = entry.size;
+		sectHeaders[sectIdx].shSectOff = offset;
 
 		// Change offset in accordance to the size
 		offset += entry.size;
+
+		sectIdx++;
 	}
 
-	strncat(sectHeaders[i].shSectName, "._none", 8);
-	sectHeaders[i].shSectOff = 0;
-	sectHeaders[i].shSectSize = 0;
+	strncat(sectHeaders[sectIdx].shSectName, "._none", 8);
+	sectHeaders[sectIdx].shSectOff = 0;
+	sectHeaders[sectIdx].shSectSize = 0;
 
 	bin->sectHdrTable = sectHeaders;
 }
 
 static void generateSymbolTable(AOEFbin* bin, SymbolTable* symbTable) {
-	AOEFFSymbEntry* aoeffSymTable = malloc(sizeof(AOEFFSymbEntry) * symbTable->size);
+	// Symbol Table includes the LP ('@'), ignore it
+	AOEFFSymbEntry* aoeffSymTable = malloc(sizeof(AOEFFSymbEntry) * symbTable->size - 1);
 	if (!aoeffSymTable) handleError(ERR_MEM, FATAL, "Could not allocate memory for AOEFF symbol table!\n");
 
 	// Fill out the string table as well
@@ -213,20 +217,18 @@ static void generateSymbolTable(AOEFbin* bin, SymbolTable* symbTable) {
 	char* _stStrs = stStrs;
 
 	uint32_t stridx = 0;
-	for (int i = 0; i < symbTable->size; i++) {
+	// LP is always first entry, skip it
+	for (int i = 1; i < symbTable->size; i++) {
 		symb_entry_t* entry = symbTable->entries[i];
 
-		// Skip LP
-		if (*entry->name == '@') continue;
-
 		uint32_t flags = entry->flags;
-		aoeffSymTable[i].seSymbInfo = SE_INFO(GET_TYPE(flags), GET_LOCALITY(flags));
-		aoeffSymTable[i].seSymbSect = GET_SECTION(flags);
-		aoeffSymTable[i].seSymbVal = entry->value;
+		aoeffSymTable[i-1].seSymbInfo = SE_INFO(GET_TYPE(flags), GET_LOCALITY(flags));
+		aoeffSymTable[i-1].seSymbSect = GET_SECTION(flags);
+		aoeffSymTable[i-1].seSymbVal = entry->value;
 
 		_stStrs = _strcat(_stStrs, entry->name);
+		aoeffSymTable[i-1].seSymbName = stridx;
 		stridx += (strlen(entry->name) + 1);
-		aoeffSymTable[i].seSymbName = stridx;
 	}
 
 	_strncat(_stStrs, "END_AOEFF_STRS\0", 16);
@@ -267,11 +269,17 @@ AOEFbin* generateBinary(InstructionStream* instrStream, SymbolTable* symbTable, 
 
 	bin->header = header;
 
+	bin->symbEntTable = NULL;
+	bin->stringTable.stStrs = NULL;
 	generateSymbolTable(bin, symbTable);
+	bin->sectHdrTable = NULL;
 	generateSectionHeaders(bin, sectTable);
 
+	bin->_data = NULL;
 	generateData(bin, dataTable);
+	bin->_const = NULL;
 	generateConst(bin, dataTable);
+	bin->_text = NULL;
 	generateText(bin, instrStream);
 
 	return bin;
@@ -311,9 +319,9 @@ void writeBinary(AOEFbin* bin, char* outbin) {
 		else if (strcmp(".text", header->shSectName) == 0) textHeader = header;
 	}
 
-	if (dataHeader) fwrite(bin->_data, sizeof(uint8_t), dataHeader->shSectSize, outfile);
-	if (constHeader) fwrite(bin->_const, sizeof(uint8_t), constHeader->shSectSize, outfile);
-	if (textHeader) fwrite(bin->_text, sizeof(uint8_t), textHeader->shSectSize, outfile);
+	if (dataHeader && dataHeader->shSectSize != 0) fwrite(bin->_data, sizeof(uint8_t), dataHeader->shSectSize, outfile);
+	if (constHeader && constHeader->shSectSize != 0) fwrite(bin->_const, sizeof(uint8_t), constHeader->shSectSize, outfile);
+	if (textHeader && textHeader->shSectSize != 0) fwrite(bin->_text, sizeof(uint8_t), textHeader->shSectSize, outfile);
 
 	debug("Wrote to %s!\n", outbin);
 
