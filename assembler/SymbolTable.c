@@ -78,8 +78,8 @@ void displaySymbTable(SymbolTable* symbTable) {
 		uint8_t DEFINED = GET_DEFINED(flags);
 		
 		debug("%s: ", entry->name);
-		if (EXPR == 0b1) printf("(%s)\t", entry->expr);
-		else printf("(0x%x)\t", entry->value);
+		if (EXPR == 0b1) debug("(%s)\t", entry->expr);
+		else debug("(0x%x)\t", entry->value);
 
 		char sectStr[6];
 		if (SECT == 0b00) sprintf(sectStr, "DATA");

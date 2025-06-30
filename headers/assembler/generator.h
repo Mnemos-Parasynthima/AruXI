@@ -5,11 +5,11 @@
 #include "SymbolTable.h"
 #include "DataTable.h"
 #include "SectionTable.h"
-#include "aef.h"
+#include "aoef.h"
 
 
-AEFbin* generateBinary(InstructionStream* instrStream, SymbolTable* symbTable, DataTable* dataTable, SectionTable* sectTable);
+AOEFbin* generateBinary(InstructionStream* instrStream, SymbolTable* symbTable, DataTable* dataTable, SectionTable* sectTable);
 
-void writeBinary(AEFbin* bin, char* outbin);
+void writeBinary(AOEFbin* bin, char* outbin);
 
 #endif

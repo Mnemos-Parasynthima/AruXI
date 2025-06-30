@@ -412,7 +412,7 @@ int main(int argc, char const* argv[]) {
 	debug("\n");
 	displayInstrStream(instrStream, true);
 
-	AEFbin* bin = generateBinary(instrStream, symbTable, dataTable, sectTable);
+	AOEFbin* bin = generateBinary(instrStream, symbTable, dataTable, sectTable);
 
 	writeBinary(bin, outbin);
 

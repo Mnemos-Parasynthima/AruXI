@@ -2,7 +2,10 @@ CC = gcc
 CFLAGS = -Wall
 
 
-all: arxsm emu kernel
+all: arxsm emu kernel shell
+
+windows:
+	(cd assembler && make $@)
 
 arxsm:
 	(cd assembler && make $@)
@@ -11,6 +14,9 @@ emu:
 
 
 kernel:
+
+
+shell:
 
 
 debug:

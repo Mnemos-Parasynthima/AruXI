@@ -1,29 +1,27 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "generator.h"
 #include "assemblerError.h"
 
 
-static void generateConst(DataTable* dataTable, AEFbin* bin) {
-	uint8_t* constSect = malloc(sizeof(uint8_t) * bin->header.constSize);
-	//
+static void generateData(AOEFbin* bin, DataTable* dataTable) {
+	AOEFFSectHeader* dataHeader = NULL;
 
-	uint32_t pos = 0x0;
-	for (int i = 0; i < dataTable->cSize; i++) {
-		data_entry_t* entry = dataTable->constEntries[i];
-
-		for (int b = 0; b < entry->size; b++) {
-			constSect[pos] = entry->data.bytes[b];
-			pos++;
+	for (int i = 0; i < 4; i++) {
+		AOEFFSectHeader* sectHeader = &(bin->sectHdrTable[i]);
+		
+		if (strcmp(".data", sectHeader->shSectName) == 0) {
+			dataHeader = sectHeader;
+			break;
 		}
 	}
 
-	bin->constSect = constSect;
-}
+	// data section might not even be present, skip
+	if (!dataHeader) return;
 
-static void generateData(DataTable* dataTable, AEFbin* bin) {
-	uint8_t* dataSect = malloc(sizeof(uint8_t) * bin->header.dataSize);
+	uint8_t* dataSect = malloc(sizeof(uint8_t) * dataHeader->shSectSize);
 	//
 
 	uint32_t pos = 0x0;
@@ -36,11 +34,58 @@ static void generateData(DataTable* dataTable, AEFbin* bin) {
 		}
 	}
 
-	bin->dataSect = dataSect;
+	bin->_data = dataSect;
 }
 
-static void generateText(InstructionStream* instrStream, AEFbin* bin) {
-	uint32_t* textSect = malloc(sizeof(uint32_t) * bin->header.textSize);
+static void generateConst(AOEFbin* bin, DataTable* dataTable) {
+	AOEFFSectHeader* constHeader = NULL;
+
+	for (int i = 0; i < 4; i++) {
+		AOEFFSectHeader* sectHeader = &(bin->sectHdrTable[i]);
+		
+		if (strcmp(".const", sectHeader->shSectName) == 0) {
+			constHeader = sectHeader;
+			break;
+		}
+	}
+
+	// const section might not even be present, skip
+	if (!constHeader) return;
+
+	uint8_t* constSect = malloc(sizeof(uint8_t) * constHeader->shSectSize);
+	//
+
+	uint32_t pos = 0x0;
+	for (int i = 0; i < dataTable->cSize; i++) {
+		data_entry_t* entry = dataTable->constEntries[i];
+
+		for (int b = 0; b < entry->size; b++) {
+			constSect[pos] = entry->data.bytes[b];
+			pos++;
+		}
+	}
+
+	bin->_const = constSect;
+}
+
+static void generateText(AOEFbin* bin, InstructionStream* instrStream) {
+	// AOEFFSectHeader* textHeader = NULL;
+
+	// for (int i = 0; i < 4; i++) {
+	// 	AOEFFSectHeader* sectHeader = &(bin->sectHdrTable[i]);
+		
+	// 	if (strcmp(".const", sectHeader->shSectName)) {
+	// 		textHeader = sectHeader;
+	// 		break;
+	// 	}
+	// }
+
+	// // const section might not even be present, skip
+	// if (!textHeader) return;
+
+	// The number of bytes taken by the text section can either be the number of instructions * 4 bytes
+	// or the total size in bytes using sectHeader
+	uint32_t* textSect = malloc(sizeof(uint32_t) * instrStream->size);
 	//
 
 	uint32_t pos = 0x0;
@@ -51,57 +96,233 @@ static void generateText(InstructionStream* instrStream, AEFbin* bin) {
 		pos++;
 	}
 
-	bin->textSect = textSect;
+	bin->_text = textSect;
 }
 
-AEFbin* generateBinary(InstructionStream* instrStream, SymbolTable* symbTable, DataTable* dataTable, SectionTable* sectTable) {
-	AEFheader header = {
-		.ID = {0xAE, 'A', 'E', 'F'},
-		.entry = getSymbEntry(symbTable, "_init")->value,
-		.bssSize = sectTable->entries[2].size,
-		.constOff = 32,
-		.constSize = sectTable->entries[1].size,
-		.dataOff = 32 + sectTable->entries[1].size,
-		.dataSize = sectTable->entries[0].size,
-		.textOff = 32 + sectTable->entries[1].size + sectTable->entries[0].size,
-		.textSize = sectTable->entries[3].size
+static uint32_t getSymbolStringsSize(SymbolTable* symbTable) {
+	uint32_t size = 0;
+
+	for (int i = 0; i < symbTable->size; i++) {
+		symb_entry_t* entry = symbTable->entries[i];
+
+		// Skip LP
+		if (*entry->name == '@') continue;
+
+		size_t len = strlen(entry->name);
+
+		size += (len + 1); // include null-terminator
+	}
+
+	return (size + 16); // string table has ending string of size 16
+}
+
+/**
+ * Like `strcat` but preserves the previous null byte instead.
+ * @param dest 
+ * @param src 
+ */
+static char* _strcat(char* dest, const char* src) {
+	char* _src = (char*) src;
+
+	// Copy all of src, including null
+	while (*_src) {
+		*dest = *_src;
+		_src++;
+		dest++;
+	}
+
+	// _src now at the null byte, copy that one
+	*dest = *_src;
+	dest++;
+	// dest now after null
+
+	return dest;
+}
+
+/**
+ * Like `strncat` but preserves the previous null byte instead, stil in accordance to the limit.
+ * @param dest 
+ * @param src 
+ */
+static char* _strncat(char* dest, const char* src, size_t n) {
+	size_t copied = 0;
+
+	char* _src = (char*) src;
+
+	// Copy all of src, including null
+	while (*_src) {
+		if (copied > n) break;
+
+		*dest = *_src;
+		_src++;
+		dest++;
+		copied++;
+	}
+
+	if (copied <= n) {
+		*dest = *_src;
+		dest++;
+	}
+
+	return dest;
+}
+
+static void generateSectionHeaders(AOEFbin* bin, SectionTable* sectTable) {
+	AOEFFSectHeader* sectHeaders = malloc(sizeof(AOEFFSectHeader) * bin->header.hSectSize);
+	if (!sectHeaders) handleError(ERR_MEM, FATAL, "Could not allocate memory for section header table!\n");
+
+	// offset where all sections start at, basically at the end of the string table
+	uint32_t baseOffset = bin->header.hStrTabOff + bin->header.hStrTabSize;
+
+	uint32_t offset = baseOffset;
+
+	int i = 0;
+	for (; i < 4; i++) {
+		section_entry_t entry = sectTable->entries[i];
+		if (!entry.present) continue;
+
+		char* sectName;
+		if (i == 0) sectName = ".data";
+		else if (i == 1) sectName = ".const";
+		else if (i == 2) sectName = ".bss";
+		else sectName = ".text";
+
+		strncpy(sectHeaders[i].shSectName, sectName, 8);
+		sectHeaders[i].shSectSize = entry.size;
+		sectHeaders[i].shSectOff = offset;
+
+		// Change offset in accordance to the size
+		offset += entry.size;
+	}
+
+	strncat(sectHeaders[i].shSectName, "._none", 8);
+	sectHeaders[i].shSectOff = 0;
+	sectHeaders[i].shSectSize = 0;
+
+	bin->sectHdrTable = sectHeaders;
+}
+
+static void generateSymbolTable(AOEFbin* bin, SymbolTable* symbTable) {
+	AOEFFSymbEntry* aoeffSymTable = malloc(sizeof(AOEFFSymbEntry) * symbTable->size);
+	if (!aoeffSymTable) handleError(ERR_MEM, FATAL, "Could not allocate memory for AOEFF symbol table!\n");
+
+	// Fill out the string table as well
+	char* stStrs = malloc(sizeof(char) * bin->header.hStrTabSize);
+	if (!stStrs) handleError(ERR_MEM, FATAL, "Could not allocate memory for strings!\n");
+
+	char* _stStrs = stStrs;
+
+	uint32_t stridx = 0;
+	for (int i = 0; i < symbTable->size; i++) {
+		symb_entry_t* entry = symbTable->entries[i];
+
+		// Skip LP
+		if (*entry->name == '@') continue;
+
+		uint32_t flags = entry->flags;
+		aoeffSymTable[i].seSymbInfo = SE_INFO(GET_TYPE(flags), GET_LOCALITY(flags));
+		aoeffSymTable[i].seSymbSect = GET_SECTION(flags);
+		aoeffSymTable[i].seSymbVal = entry->value;
+
+		_stStrs = _strcat(_stStrs, entry->name);
+		stridx += (strlen(entry->name) + 1);
+		aoeffSymTable[i].seSymbName = stridx;
+	}
+
+	_strncat(_stStrs, "END_AOEFF_STRS\0", 16);
+
+	bin->symbEntTable = aoeffSymTable;
+	bin->stringTable.stStrs = stStrs;
+}
+
+AOEFbin* generateBinary(InstructionStream* instrStream, SymbolTable* symbTable, DataTable* dataTable, SectionTable* sectTable) {
+	int sectEntries = 0;
+
+	for (int i = 0; i < 4; i++) {
+		if (sectTable->entries[i].present) sectEntries++;
+	}
+
+	sectEntries++; // ending blank entry
+	uint32_t symbTableSize = symbTable->size + 1; // ending blank symbol
+
+	uint32_t symbOff = sizeof(AOEFFheader) + (sizeof(AOEFFSectHeader) * sectEntries);
+	uint32_t strTabOff = symbOff + (sizeof(AOEFFSymbEntry) * symbTableSize);
+
+	uint32_t symbStrs = getSymbolStringsSize(symbTable);
+
+	AOEFFheader header = {
+		.hID = {AH_ID0, AH_ID1, AH_ID2, AH_ID3},
+		.hType = AHT_EXEC,
+		.hEntry = getSymbEntry(symbTable, "_init")->value,
+		.hSectOff = sizeof(AOEFFheader),
+		.hSectSize = sectEntries,
+		.hSymbOff = symbOff,
+		.hSymbSize = symbTableSize,
+		.hStrTabOff = strTabOff,
+		.hStrTabSize = symbStrs
 	};
 
-
-	AEFbin* bin = malloc(sizeof(AEFbin));
-	//
+	AOEFbin* bin = malloc(sizeof(AOEFbin));
+	if (!bin) handleError(ERR_MEM, FATAL, "Could not allocate memory for the binary image!\n");
 
 	bin->header = header;
 
+	generateSymbolTable(bin, symbTable);
+	generateSectionHeaders(bin, sectTable);
 
-	generateConst(dataTable, bin);
-	generateData(dataTable, bin);
-	generateText(instrStream, bin);
+	generateData(bin, dataTable);
+	generateConst(bin, dataTable);
+	generateText(bin, instrStream);
 
 	return bin;
 }
 
-void writeBinary(AEFbin* bin, char* outbin) {
+void writeBinary(AOEFbin* bin, char* outbin) {
 	FILE* outfile = fopen(outbin, "wb");
 	if (!outfile) handleError(ERR_IO, FATAL, "Could not open %s!\n", outbin);
 
-	fwrite(&bin->header.ID, sizeof(uint8_t), 4, outfile);
-	fwrite(&bin->header.entry, sizeof(uint32_t), 1, outfile);
-	fwrite(&bin->header.constOff, sizeof(uint32_t), 1, outfile);
-	fwrite(&bin->header.constSize, sizeof(uint32_t), 1, outfile);
-	fwrite(&bin->header.dataOff, sizeof(uint32_t), 1, outfile);
-	fwrite(&bin->header.dataSize, sizeof(uint32_t), 1, outfile);
-	fwrite(&bin->header.textOff, sizeof(uint32_t), 1, outfile);
-	fwrite(&bin->header.textSize, sizeof(uint32_t), 1, outfile);
-	fwrite(bin->constSect, sizeof(uint8_t), bin->header.constSize, outfile);
-	fwrite(bin->dataSect, sizeof(uint8_t), bin->header.dataSize, outfile);
-	fwrite(bin->textSect, sizeof(uint8_t), bin->header.textSize, outfile);
+	// Write header info
+	fwrite(&bin->header.hID, sizeof(uint8_t), 4, outfile);
+	fwrite(&bin->header.hType, sizeof(uint32_t), 1, outfile);
+	fwrite(&bin->header.hEntry, sizeof(uint32_t), 1, outfile);
+	fwrite(&bin->header.hSectOff, sizeof(uint32_t), 1, outfile);
+	fwrite(&bin->header.hSectSize, sizeof(uint32_t), 1, outfile);
+	fwrite(&bin->header.hSymbOff, sizeof(uint32_t), 1, outfile);
+	fwrite(&bin->header.hSymbSize, sizeof(uint32_t), 1, outfile);
+	fwrite(&bin->header.hStrTabOff, sizeof(uint32_t), 1, outfile);
+	fwrite(&bin->header.hStrTabSize, sizeof(uint32_t), 1, outfile);
+
+	// Write tables
+	fwrite(bin->sectHdrTable, sizeof(AOEFFSectHeader), bin->header.hSectSize, outfile);
+	fwrite(bin->symbEntTable, sizeof(AOEFFSymbEntry), bin->header.hSymbSize, outfile);
+	fwrite(bin->stringTable.stStrs, sizeof(char), bin->header.hStrTabSize, outfile);
+
+	// Write payload
+	AOEFFSectHeader* dataHeader = NULL;
+	AOEFFSectHeader* constHeader = NULL;
+	AOEFFSectHeader* textHeader = NULL;
+	AOEFFSectHeader* header = NULL;
+
+	for (int i = 0; i < 4; i++) {
+		header = &(bin->sectHdrTable[i]);
+
+		if (strcmp(".data", header->shSectName) == 0) dataHeader = header;
+		else if (strcmp(".const", header->shSectName) == 0) constHeader = header;
+		else if (strcmp(".text", header->shSectName) == 0) textHeader = header;
+	}
+
+	if (dataHeader) fwrite(bin->_data, sizeof(uint8_t), dataHeader->shSectSize, outfile);
+	if (constHeader) fwrite(bin->_const, sizeof(uint8_t), constHeader->shSectSize, outfile);
+	if (textHeader) fwrite(bin->_text, sizeof(uint8_t), textHeader->shSectSize, outfile);
 
 	debug("Wrote to %s!\n", outbin);
 
 	fclose(outfile);
-	free(bin->constSect);
-	free(bin->dataSect);
-	free(bin->textSect);
+	free(bin->stringTable.stStrs);
+	free(bin->symbEntTable);
+	free(bin->sectHdrTable);
+	free(bin->_data);
+	free(bin->_const);
+	free(bin->_text);
 	free(bin);
 }
