@@ -43,7 +43,7 @@ static void generateConst(AOEFbin* bin, DataTable* dataTable) {
 
 	for (int i = 0; i < 4; i++) {
 		AOEFFSectHeader* sectHeader = &(bin->sectHdrTable[i]);
-		
+
 		if (strcmp(".const", sectHeader->shSectName) == 0) {
 			constHeader = sectHeader;
 			break;
@@ -198,7 +198,7 @@ static void generateSectionHeaders(AOEFbin* bin, SectionTable* sectTable) {
 		sectIdx++;
 	}
 
-	strncat(sectHeaders[sectIdx].shSectName, "._none", 8);
+	strncpy(sectHeaders[sectIdx].shSectName, "._none", 8);
 	sectHeaders[sectIdx].shSectOff = 0;
 	sectHeaders[sectIdx].shSectSize = 0;
 
@@ -207,7 +207,8 @@ static void generateSectionHeaders(AOEFbin* bin, SectionTable* sectTable) {
 
 static void generateSymbolTable(AOEFbin* bin, SymbolTable* symbTable) {
 	// Symbol Table includes the LP ('@'), ignore it
-	AOEFFSymbEntry* aoeffSymTable = malloc(sizeof(AOEFFSymbEntry) * symbTable->size - 1);
+	// However, the need for end blank symbol undos the -1
+	AOEFFSymbEntry* aoeffSymTable = malloc(sizeof(AOEFFSymbEntry) * (symbTable->size));
 	if (!aoeffSymTable) handleError(ERR_MEM, FATAL, "Could not allocate memory for AOEFF symbol table!\n");
 
 	// Fill out the string table as well
@@ -233,6 +234,12 @@ static void generateSymbolTable(AOEFbin* bin, SymbolTable* symbTable) {
 
 	_strncat(_stStrs, "END_AOEFF_STRS\0", 16);
 
+	// Add ending blank entry
+	int lastIdx = symbTable->size - 1;
+	aoeffSymTable[lastIdx].seSymbInfo = SE_INFO(0, 0);
+	aoeffSymTable[lastIdx].seSymbSect = 0x0;
+	aoeffSymTable[lastIdx].seSymbVal = 0x0;
+
 	bin->symbEntTable = aoeffSymTable;
 	bin->stringTable.stStrs = stStrs;
 }
@@ -245,7 +252,9 @@ AOEFbin* generateBinary(InstructionStream* instrStream, SymbolTable* symbTable, 
 	}
 
 	sectEntries++; // ending blank entry
-	uint32_t symbTableSize = symbTable->size + 1; // ending blank symbol
+	uint32_t symbTableSize = symbTable->size;
+	// Since the symbol table will have an empty ending symbol, the size would be +1
+	// However, symbTable.size includes the LP, so have that +1 be the blank
 
 	uint32_t symbOff = sizeof(AOEFFheader) + (sizeof(AOEFFSectHeader) * sectEntries);
 	uint32_t strTabOff = symbOff + (sizeof(AOEFFSymbEntry) * symbTableSize);

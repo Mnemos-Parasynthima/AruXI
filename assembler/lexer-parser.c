@@ -348,46 +348,52 @@ static void zeroDirective(SectionTable* sectTable, DataTable* dataTable, SymbolT
 	int32_t size = eval(_size, symbTable, &canEval);
 	if (!canEval) handleError(ERR_INVALID_EXPRESSION, FATAL, "Expression must contain defined symbols!\n");
 
-	uint8_t* data = calloc(size, sizeof(uint8_t));
+	uint8_t* data = NULL;
+	if (sectTable->activeSection != 2) data = calloc(size, sizeof(uint8_t));
 
 	data_entry_t* entry = initDataEntry(1, sectTable->entries[sectTable->activeSection].lp, size, temp, (void*)data);
 	sectTable->entries[sectTable->activeSection].lp += size;
 	addDataEntry(dataTable, entry, (data_sect_type_t) sectTable->activeSection);
+	free(temp);
 }
 
 static void fillDirective(SectionTable* sectTable, DataTable* dataTable, char* args) {
 	validateSection(FILL, sectTable->activeSection);
 
-	char* _len = strtok_r(NULL, ",", &args);
-	if (!_len) handleError(ERR_INVALID_SYNTAX, FATAL, "Length not found for fill!\n");
+	char* lenTok = strtok_r(NULL, ",", &args);
+	if (!lenTok) handleError(ERR_INVALID_SYNTAX, FATAL, "Length not found for fill!\n");
 
-	char* _num = strtok_r(NULL, " \t", &args);
-	if (!_num) handleError(ERR_INVALID_SYNTAX, FATAL, "Number not found for fill!\n");
+	char* numTok = strtok_r(NULL, " \t", &args);
+	if (!numTok) handleError(ERR_INVALID_SYNTAX, FATAL, "Number not found for fill!\n");
 
 	// For now, labels cannot be used for len
 	// Maybe a solution later on
 
 	bool canEval = true;
-	uint32_t len = eval(_len, NULL, &canEval);
-	if (!canEval) handleError(ERR_INVALID_SYNTAX, FATAL, "Cannot use labels for fill len: `%s`\n", _len);
+	uint32_t len = eval(lenTok, NULL, &canEval);
+	if (!canEval) handleError(ERR_INVALID_SYNTAX, FATAL, "Cannot use labels for fill len: `%s`\n", lenTok);
 
 	// Since fill creates bytes, do the same thing as the byte directive
 	// Create artificial exprs
-	size_t _numLen = strlen(_num);
-	char* temp = (char*) malloc(sizeof(char) * (_numLen+1) * len + 1);
+	size_t numTokLen = strlen(numTok);
+	// numTokLen + 1 for "[numTok],", as in +1 takes care of ','
+	// last +1 for null terminator
+	char* temp = (char*) malloc(sizeof(char) * (numTokLen+1) * len + 1);
 	if (!temp) handleError(ERR_MEM, FATAL, "");
 
 	// Need to create it such that `"[_num],[_num],[_num],..."`
 
-	char buffer[_numLen+1];
-	sprintf(buffer, "%s,", _num);
-	for (int i = 0; i < len; i++) {
+	char buffer[numTokLen+2];
+	sprintf(buffer, "%s,", numTok);
+	strcpy(temp, buffer);
+	for (int i = 0; i < len-1; i++) {
 		strcat(temp, buffer);
 	}
 
 	data_entry_t* entry = initDataEntry(1, sectTable->entries[sectTable->activeSection].lp, len, temp, NULL);
 	sectTable->entries[sectTable->activeSection].lp += (len*1);
 	addDataEntry(dataTable, entry, (data_sect_type_t) sectTable->activeSection);
+	free(temp);
 }
 
 // TODO

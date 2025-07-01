@@ -369,6 +369,7 @@ int main(int argc, char const* argv[]) {
 			}
 		}
 
+		free(cleanLine);
 		read = getline(&line, &n, source);
 	}
 	fclose(source);
@@ -420,6 +421,7 @@ int main(int argc, char const* argv[]) {
 	deleteInstrStream(instrStream);
 	deleteSectionTable(sectTable);
 	deleteDataTable(dataTable);
+	free(line);
 
 	return 0;
 }

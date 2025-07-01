@@ -156,6 +156,7 @@ void deleteDataTable(DataTable* dataTable) {
 		free(entry->data.bytes);
 		free(entry);
 	}
+	free(dataTable->dataEntries);
 
 	for (int i = 0; i < dataTable->cSize; i++) {
 		data_entry_t* entry = dataTable->constEntries[i];
@@ -164,6 +165,7 @@ void deleteDataTable(DataTable* dataTable) {
 		free(entry->data.bytes);
 		free(entry);
 	}
+	free(dataTable->constEntries);
 
 	for (int i = 0; i < dataTable->bSize; i++) {
 		data_entry_t* entry = dataTable->bssEntries[i];
@@ -173,6 +175,7 @@ void deleteDataTable(DataTable* dataTable) {
 		// it only needs the size needed
 		free(entry);
 	}
+	free(dataTable->bssEntries);
 
 	free(dataTable);
 }

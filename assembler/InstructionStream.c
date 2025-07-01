@@ -34,12 +34,13 @@ instr_obj_t* initInstrObj(uint32_t addr, char* source, char* instr, char** opera
 
 	size_t instrLen = strlen(instr);
 	instrObj->instr = (char*) malloc(sizeof(char) * instrLen + 1);
+	if (!instrObj->instr) handleError(ERR_MEM, FATAL, "Could not allocate memory for instruction in object!\n");
 	strcpy(instrObj->instr, instr);
 
 	size_t operandsLen = 0;
 	char** temp = operands;
 	while (*temp) { temp++; operandsLen++; }
-	instrObj->operands = (char**) malloc(sizeof(char*) * operandsLen + 1);
+	instrObj->operands = (char**) malloc(sizeof(char*) * (operandsLen + 1));
 	if (!instrObj->operands) handleError(ERR_MEM, FATAL, "Could not allocate memory for instruction operands!\n");
 
 	for (int i = 0; i < operandsLen; i++) {
@@ -118,10 +119,14 @@ void deleteInstrStream(InstructionStream* instrStream) {
 		// free(instrObj->source);
 
 		char** temp = instrObj->operands;
-		while (*temp && *temp != 0xFEEDFAED) { free(*temp); temp++; }
+		while (*temp) {
+			if (*temp != 0xFEEDFAED) free(*temp);
+			temp++;
+		}
 		free(instrObj->operands);
 		free(instrObj);
 	}
 
+	free(instrStream->instructions);
 	free(instrStream);
 }

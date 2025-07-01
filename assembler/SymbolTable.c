@@ -97,6 +97,7 @@ void deleteSymbTable(SymbolTable* symbTable) {
 	for (int i = 0; i < symbTable->size; i++) {
 		symb_entry_t* entry = symbTable->entries[i];
 		free(entry->name);
+		free(entry);
 		// Assuming expr has been freed before
 		// Should be guaranteed by updateSymbEntry()
 	}
