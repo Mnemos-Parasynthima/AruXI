@@ -299,6 +299,22 @@ int main(int argc, char const* argv[]) {
 	FILE* source = fopen(infile, "r");
 	if (!source) handleError(ERR_IO, FATAL, "Could not open %s!\n", infile);
 
+	// For now, program is loaded at a fixed address, refer to documentation on Process Address Space
+	// Space for kernel code is different
+	uint32_t dataStart, constStart, bssStart, textStart;
+
+	if (kern) {
+		dataStart = 0xA0080000;
+		constStart = 0xA0080000;
+		bssStart = 0xA0080000;
+		textStart = 0xB8080000;
+	} else {
+		dataStart = 0x20090000;
+		constStart = 0x20090000;
+		bssStart = 0x20040000;
+		textStart = 0x20190000;
+	}
+
 	// PASS 1
 
 	SymbolTable* symbTable = initSymbTable();
@@ -306,11 +322,10 @@ int main(int argc, char const* argv[]) {
 	SectionTable* sectTable = initSectionTable();
 	DataTable* dataTable = initDataTable();
 
-	// For now, program is loaded at a fixed address, refer to documentation on Process Address Space
-	sectTable->entries[0].lp = 0x20090000;
-	sectTable->entries[1].lp = 0x20080000;
-	sectTable->entries[2].lp = 0x20040000;
-	sectTable->entries[3].lp = 0x20190000;
+	sectTable->entries[0].lp = dataStart;
+	sectTable->entries[1].lp = constStart;
+	sectTable->entries[2].lp = bssStart;
+	sectTable->entries[3].lp = textStart;
 
 	// Expressions can use the LP (@)
 	// Instead of passing it to eval, treat it as a (variable) label/symbol
@@ -378,10 +393,10 @@ int main(int argc, char const* argv[]) {
 	}
 	fclose(source);
 
-	sectTable->entries[0].size = sectTable->entries[0].lp - 0x20090000;
-	sectTable->entries[1].size = sectTable->entries[1].lp - 0x20080000;
-	sectTable->entries[2].size = sectTable->entries[2].lp - 0x20040000;
-	sectTable->entries[3].size = sectTable->entries[3].lp - 0x20190000;
+	sectTable->entries[0].size = sectTable->entries[0].lp - dataStart;
+	sectTable->entries[1].size = sectTable->entries[1].lp - constStart;
+	sectTable->entries[2].size = sectTable->entries[2].lp - bssStart;
+	sectTable->entries[3].size = sectTable->entries[3].lp - textStart;
 
 	debug("\n");
 	displaySymbTable(symbTable);
