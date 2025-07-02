@@ -22,6 +22,7 @@
 
 
 bool halt; // To stop assembling in case of `.end`
+bool kern = false; // To indicate whether an executable or kernel
 
 static void resolveSymbols(SymbolTable* symbTable) {
 	// printf("Resolving symbols!\n");
@@ -260,10 +261,13 @@ int main(int argc, char const* argv[]) {
 	char* outbin = "out.ar";
 	int opt;
 
-	while ((opt = getopt(argc, (char* const*) argv, "o:")) != -1) {
+	while ((opt = getopt(argc, (char* const*) argv, "o:k")) != -1) {
 		switch (opt) {
 			case 'o':
 				outbin = optarg;
+				break;
+			case 'k':
+				kern = true;
 				break;
 			case '?':
 				if (optopt == 'o') fprintf(stderr, "Option -%c requires an argument.\n", optopt);

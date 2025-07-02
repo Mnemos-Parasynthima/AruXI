@@ -6,6 +6,8 @@
 #include "assemblerError.h"
 
 
+extern bool kern;
+
 static void generateData(AOEFbin* bin, DataTable* dataTable) {
 	AOEFFSectHeader* dataHeader = NULL;
 
@@ -263,7 +265,7 @@ AOEFbin* generateBinary(InstructionStream* instrStream, SymbolTable* symbTable, 
 
 	AOEFFheader header = {
 		.hID = {AH_ID0, AH_ID1, AH_ID2, AH_ID3},
-		.hType = AHT_EXEC,
+		.hType = ((kern) ?  AHT_KERN : AHT_EXEC),
 		.hEntry = getSymbEntry(symbTable, "_init")->value,
 		.hSectOff = sizeof(AOEFFheader),
 		.hSectSize = sectEntries,
