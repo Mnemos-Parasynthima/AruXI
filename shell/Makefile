@@ -1,9 +1,9 @@
 CC = gcc
 CFLAGS = -Wall
-INCLUDES = -I../headers/emulator -I../headers
+INCLUDES = -I../headers/shell -I../headers
 
-SRCS = emulator.c emulatorError.c ../shared/emSignal.c
-TARGET = ../out/ruemu
+SRCS = shell.c shellError.c ../shared/emSignal.c
+TARGET = ../out/ash
 
 # ifeq ($(MAKECMDGOALS),windows)
 # SRCS := $(SRCS) getline.c
@@ -15,22 +15,19 @@ OBJS = $(SRCS:%.c=%.o)
 %.o: %.c
 	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
-all: cpu ruemu
+all: shell
 
-ruemu: $(OBJS)
+shell: $(OBJS)
 	$(CC) $(CFLAGS) -o $(TARGET) $(OBJS)
 
-cpu:
-	(cd cpu && make $@)
 
 debug: CFLAGS += -g -O0 -DDEBUG
-debug: ruemu
+debug: shell
 
 # lib: $(SRCS)
 # $(CC) -fPIC -shared -o ../out/libarxsm.so $(SRCS) $(INCLUDES)
 
 clean:
-	(cd cpu && make $@)
 	rm -f *.o
 	rm -f ../shared/*.o
-	rm -f ../out/ruemu
+	rm -f ../out/ash

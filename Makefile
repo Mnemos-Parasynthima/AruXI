@@ -2,7 +2,7 @@ CC = gcc
 CFLAGS = -Wall
 
 
-all: arxsm ruemu kernel shell
+all: arxsm cpu ruemu kernel shell
 
 windows:
 	(cd assembler && make $@)
@@ -11,6 +11,9 @@ arxsm:
 	(cd assembler && make $@)
 
 ruemu:
+	(cd emulator && make $@)
+
+cpu:
 	(cd emulator && make $@)
 
 kernel: arxsm
@@ -31,6 +34,8 @@ test:
 
 clean:
 	(cd assembler && make $@)
+	(cd emulator && make $@)
+	(cd shell && make $@)
 	rm -f *.o
 	rm -f *.so
 	rm -f out/arxsm

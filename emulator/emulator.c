@@ -5,6 +5,7 @@
 #include <sys/mman.h>
 #include <sys/shm.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <fcntl.h>
 #include <unistd.h>
 
@@ -13,6 +14,12 @@
 #include "emulatorError.h"
 #include "ipc.h"
 
+
+#define KERN_START 0xA0080000 
+#define KERN_DATA 0xA0080000
+#define KERN_TEXT 0xB8080000
+#define KERN_HEAP 0xD0080000
+#define KERN_STACK 0xF0080000
 
 /**
  * Loads the kernel image binary into an mmap'd space for easy of acess, checking that the binary is in the proper format.
@@ -70,12 +77,31 @@ static signal_t* createSignalMemory() {
 	return (signal_t*) sigMem;
 }
 
-static void setupKernel(void* memory, void* kernimg, signal_t* sigMem) {
+static void setupKernel(uint8_t* memory, uint8_t* kernimg, signal_t* sigMem) {
 	AOEFFheader* header = (AOEFFheader*) kernimg;
 	uint32_t kernEntry = header->hEntry;
 
-	// NEED TO WORK ON KERNEL LAYOUT
-	// .....
+	AOEFFSectHeader* sectHdrs = kernimg + header->hSectOff;
+	uint32_t sectHdrsSize = header->hSectSize;
+
+	// Set the data and text information
+	for (uint32_t i = 0; i < sectHdrsSize; i++) {
+		AOEFFSectHeader* sectHdr = &(sectHdrs[i]);
+
+		if (strncmp(".data", sectHdr->shSectName, 8) == 0) {
+			uint8_t* dataStart = memory + KERN_DATA; // beginning of emulated memory kernel data
+			uint8_t* kernimgData = kernimg + sectHdr->shSectOff; // beginning of binary image kernel data section
+
+			memcpy(dataStart, kernimgData, sectHdr->shSectSize);
+		} else if (strncmp(".text", sectHdr->shSectName, 8) == 0) {
+			uint8_t* textStart = memory + KERN_TEXT;
+			uint8_t* kernimgText = kernimg + sectHdr->shSectOff;
+
+			debug("Start of text section in kernel image: %p::Start of kernel text section in emulated memory:%p\n", kernimgText, textStart);
+
+			memcpy(textStart, kernimgText, sectHdr->shSectSize);
+		}
+	}
 
 	// Even though this is the emulator, exec signal is only available for shell-cpu
 	signal_t* shellCPUSignal = GET_SIGNAL(sigMem, SHELL_CPU_SIG);
@@ -86,14 +112,49 @@ static void setupKernel(void* memory, void* kernimg, signal_t* sigMem) {
 	if (ret == -1) handleError(ERR_SIGNAL, FATAL, "No access for exec signal!\n");
 }
 
-static void openShell() {
+static void redirectOut(const char* filename) {
+	int fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+	if (fd == -1) handleError(ERR_IO, FATAL, "Could not open logfile!\n");
 
+	dup2(fd, STDOUT_FILENO);
+	dup2(fd, STDERR_FILENO);
+	close(fd);
+}
+
+static pid_t openShell(char* shellExe, bool log) {
+	pid_t pid = fork();
+	if (pid == -1) {
+		return -1;
+	} else if (pid == 0) {
+		char* args[] = {shellExe, NULL};
+		execv(shellExe, args);
+		perror("fail to exec shell");
+		exit(1);
+	}
+
+	return pid;
+}
+
+static pid_t runCPU(char* cpuExe, bool log) {
+	pid_t pid = fork();
+	if (pid == -1) {
+		return -1;
+	} else if (pid == 0) {
+		redirectOut("cpu.log");
+		char* args[] = {cpuExe, NULL};
+		execv(cpuExe, args);
+		perror("fail to exec cpu");
+		exit(1);
+	}
+
+	return pid;
 }
 
 int main(int argc, char const* argv[]) {
 	char* kernimgFilename = NULL;
-	char* cpuimg = NULL;
-	char* shell = NULL;
+	char* cpuimg = "iaru0";
+	char* shell = "ash";
+	bool log = false;
 
 	// Get options
 	struct option longOpts[] = {
@@ -104,14 +165,17 @@ int main(int argc, char const* argv[]) {
 
 	int opt;
 	int optIdx = 0;
-	while ((opt = getopt_long(argc, argv, ":", longOpts, &optIdx)) != -1) {
+	while ((opt = getopt_long(argc, argv, ":l", longOpts, &optIdx)) != -1) {
 		switch (opt)	{
+			case 'l':
+				log = true;
+				break;
 			case 0:
 				if (strcmp("cpu", longOpts[optIdx].name) == 0) cpuimg = optarg;
 				else if (strcmp("shell", longOpts[optIdx].name) == 0) shell = optarg;
 				break;
 			default:
-				fprintf(stderr, "Usage: %s inputfile [--cpu cpuimg] [--shell shell]", argv[0]);
+				fprintf(stderr, "Usage: %s inputfile [--cpu cpuimg] [--shell shell] [-l]", argv[0]);
 				break;
 		}
 	}
@@ -135,14 +199,29 @@ int main(int argc, char const* argv[]) {
 	signal_t* signalsMemory = createSignalMemory();
 	setupSignals(signalsMemory);
 
-	// Spawn shell
-	openShell();
 	// Spawn CPU
-	runCPU();
+	pid_t CPUPID = runCPU(cpuimg, log);
+	// Spawn shell
+	pid_t shellPID = openShell(shell, log);
+	// Shell now takes control of the main stdout/err
+	// Emulator is to have its own outstream
+	redirectOut("ruemu.log");
 
 
-	printf("RUEMU: Setting kernel...\n");
+	fprintf(stdout, "RUEMU: Setting kernel...\n");
+	debug("Start of emulated memory: %p\n", emulatedMemory);
 	setupKernel(emulatedMemory, kernimg, signalsMemory);
+
+
+	int set = setReadySignal(GET_SIGNAL(signalsMemory, UNIVERSAL_SIG));
+	if (set == -1) handleError(ERR_SIGNAL, FATAL, "No access for ready signal!\n");
+	if (set == 0) handleError(ERR_SIGNAL, FATAL, "Could not set ready signal!\n");
+
+
+	
+	int status;
+	waitpid(shellPID, &status, 0);
+	waitpid(CPUPID, &status, 0);
 
 	// munmap(kernimg, )
 	munmap(emulatedMemory, MEMORY_SPACE_SIZE);

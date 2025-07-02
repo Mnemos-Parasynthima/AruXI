@@ -4,9 +4,9 @@
 #include <stdint.h>
 
 
-#define emSIG_SHUTDOWN 0x8000000
-#define emSIG_FAULT 0x4000000
-#define emSIG_READY 0x2000000
+#define emSIG_SHUTDOWN 0x80000000
+#define emSIG_FAULT 0x40000000
+#define emSIG_READY 0x20000000
 #define emSIG_CPU_SAVED 0x2000
 #define emSIG_CPU_SAVE 0x1000
 #define emSIG_SAVE 0x40
@@ -27,7 +27,7 @@
 #define emSIG_EXEC_IDX 0
 
 #define SIG_GET(bits, i) ((bits>>i) & 0x1)
-#define SIG_SET(bits, i) (bits & (~(1<<i)))
+#define SIG_SET(bits, i) (bits | (1<<i))
 
 #define UNIVERSAL_SIG 0
 #define EMU_SHELL_SIG 1
@@ -60,5 +60,7 @@ typedef struct Signal {
 void setupSignals(signal_t* signalMemory);
 
 int setExecSignal(signal_t* signal, execprog_md* metadata);
+
+int setReadySignal(signal_t* signal);
 
 #endif

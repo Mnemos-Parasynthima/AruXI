@@ -2,6 +2,7 @@
 
 
 void setupSignals(signal_t* signalMemory) {
+	// This can only run once!!!
 	// At first, there's no distiniction, order can change at any time based on this implementation
 
 	signal_t* universalSignals = &(signalMemory[UNIVERSAL_SIG]);
@@ -42,4 +43,18 @@ int setExecSignal(signal_t* signal, execprog_md* metadata) {
 	signal->metadata.execprog.entry = metadata->entry;
 
 	return 0;
+}
+
+signal_t* getExecSignal(signal_t* sigMem) {
+	
+}
+
+int setReadySignal(signal_t* signal) {
+	// Make sure the signal entry allows for ready
+	uint8_t enable = SIG_GET(signal->intEnable, emSIG_READY_IDX);
+	if (enable != 1) return -1;
+
+	signal->interrupts = SIG_SET(signal->interrupts, emSIG_READY_IDX);
+
+	return SIG_GET(signal->interrupts, emSIG_READY_IDX);
 }
