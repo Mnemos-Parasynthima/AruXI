@@ -10,24 +10,29 @@
 #include <unistd.h>
 
 #include "emSignal.h"
-#include "cpuError.h"
-#include "ipc.h"
+#include "shmem.h"
+#define D_COMP "CPU"
+#include "diagnostics.h"
 
 
 int main(int argc, char const* argv[]) {
+	initDiagnostics(stdout, "cpu.debug");
+
+	dLog(D_NONE, DSEV_INFO, "Setting up...");
+
 	int fd = shm_open(SHMEM_SIG, O_RDWR, 0666);
-	if (fd == -1) handleError(ERR_SHAREDMEM, FATAL, "Could not open shared memory for signal!\n");
+	if (fd == -1) dFatal(D_ERR_SHAREDMEM, "Could not open shared memory for signal!");
 
 	void* _sigMem = mmap(NULL, SIG_SIZE*4, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-	if (_sigMem == MAP_FAILED) handleError(ERR_MEM, FATAL, "Could not mmap signal memory!\n");
+	if (_sigMem == MAP_FAILED) dFatal(D_ERR_MEM, "Could not mmap signal memory!");
 
 	close(fd);
 
 	fd = shm_open(SHMEM_MEM, O_RDWR, 0666);
-	if (fd == -1) handleError(ERR_SHAREDMEM, FATAL, "Could not open shared memory for emulation!\n");
+	if (fd == -1) dFatal(D_ERR_SHAREDMEM, "Could not open shared memory for emulatedion!");
 
 	void* _emMem = mmap(NULL, MEMORY_SPACE_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-	if (_emMem == MAP_FAILED) handleError(ERR_MEM, FATAL, "Could not mmap emulated memory!\n");
+	if (_emMem == MAP_FAILED) dFatal(D_ERR_MEM, "Could not mmap emulated memory!");
 
 	close(fd);
 
@@ -36,6 +41,7 @@ int main(int argc, char const* argv[]) {
 
 	// Block until signal
 	signal_t* universalSig = GET_SIGNAL(sigMem, UNIVERSAL_SIG);
+	dLog(D_NONE, DSEV_INFO, "Will now wait for ready...");
 	uint8_t ready = 0x0;
 	while (ready != 0x1) {
 		ready = SIG_GET(universalSig->interrupts, emSIG_READY_IDX);
@@ -43,12 +49,24 @@ int main(int argc, char const* argv[]) {
 
 
 	// CPU has access to signal memory and emulated memory
-	fprintf(stdout, "CPU!\n");
+	dLog(D_NONE, DSEV_INFO, "CPU!");
 
 	// Get entry
 	signal_t* shellCPUSignal = GET_SIGNAL(sigMem, SHELL_CPU_SIG);
+	while (ready != 0x1) ready = SIG_GET(shellCPUSignal->interrupts, emSIG_EXEC_IDX);
 	uint32_t entry = shellCPUSignal->metadata.execprog.entry;
 
+	// Set up
+
+	dLog(D_NONE, DSEV_INFO, "Setting up..running kernel at 0x%x...", entry);
+
+	dLog(D_NONE, DSEV_INFO, "Now in idle state, ack exec sig");
+
+	shellCPUSignal->ackMask = SIG_SET(shellCPUSignal->ackMask, emSIG_EXEC_IDX);
+
+	uint32_t instr = *((uint32_t*)(emMem + entry));
+
+	dLog(D_NONE, DSEV_INFO, "Instruction at 0x%x: 0x%x", entry, instr);
 
 
 	munmap(_sigMem, SIG_SIZE*4);

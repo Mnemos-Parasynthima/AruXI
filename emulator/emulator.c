@@ -11,8 +11,8 @@
 
 #include "emSignal.h"
 #include "aoef.h"
-#include "emulatorError.h"
-#include "ipc.h"
+#include "diagnostics.h"
+#include "shmem.h"
 
 
 #define KERN_START 0xA0080000 
@@ -28,36 +28,36 @@
  */
 static void* loadKernel(char* kernimg) {
 	int fd = open(kernimg, O_RDONLY);
-	if (fd < 0) handleError(ERR_IO, FATAL, "Could not open kernel image %s!\n", kernimg);
+	if (fd < 0) dFatal(D_ERR_IO, "Could not open kernel image %s!", kernimg);
 
 	struct stat statBuffer;
 	int rc = fstat(fd, &statBuffer);
-	if (rc != 0) handleError(ERR_IO, FATAL, "Could not stat file descriptor!\n");
+	if (rc != 0) dFatal(D_ERR_IO, "Could not stat file descriptor!");
 
 	void* ptr = mmap(0, statBuffer.st_size, PROT_READ, MAP_SHARED, fd, 0);
-	if (ptr == MAP_FAILED) handleError(ERR_INNER, FATAL, "Could not map file!\n");
+	if (ptr == MAP_FAILED) dFatal(D_ERR_INTERNAL, "Could not map file!");
 	close(fd);
 
 	AOEFFheader* header = (AOEFFheader*) ptr;
 	
 	// Check it is an AOEFF and it is type kernel
 	if (header->hID[AHID_0] != AH_ID0 && header->hID[AHID_1] != AH_ID1 && 
-			header->hID[AHID_2] != AH_ID2 && header->hID[AH_ID3] != AH_ID3) handleError(ERR_INVALID_FORMAT, FATAL, "File is not an AOEFF!\n");
+			header->hID[AHID_2] != AH_ID2 && header->hID[AH_ID3] != AH_ID3) dFatal(D_ERR_INVALID_FORMAT, "File is not an AOEFF!");
 
-	if (header->hType != AHT_KERN) handleError(ERR_INVALID_FORMAT, FATAL, "File is not a kernel image!\n");
+	if (header->hType != AHT_KERN) dFatal(D_ERR_INVALID_FORMAT, "File is not a kernel image!");
 
 	return ptr;
 }
 
 static void* createMemory() {
 	int fd = shm_open(SHMEM_MEM, O_CREAT | O_RDWR, 0666);
-	if (fd == -1) handleError(ERR_SHAREDMEM, FATAL, "Could not open shared memory for emulated memory!\n");
+	if (fd == -1) dFatal(D_ERR_SHAREDMEM, "Could not open shared memory for emulated memory!");
 
 	int r = ftruncate(fd, MEMORY_SPACE_SIZE);
-	if (r == -1) handleError(ERR_INNER, FATAL, "Could not ftruncate!\n");
+	if (r == -1) dFatal(D_ERR_INTERNAL, "Could not ftruncate!");
 
 	void* emMem = mmap(NULL, MEMORY_SPACE_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-	if (emMem == MAP_FAILED) handleError(ERR_MEM, FATAL, "Could not mmap emulated memory!\n");
+	if (emMem == MAP_FAILED) dFatal(D_ERR_MEM, "Could not mmap emulated memory!");
 
 	close(fd);
 	return emMem;
@@ -65,13 +65,13 @@ static void* createMemory() {
 
 static signal_t* createSignalMemory() {
 	int fd = shm_open(SHMEM_SIG, O_CREAT | O_RDWR, 0666);
-	if (fd == -1) handleError(ERR_SHAREDMEM, FATAL, "Could not open shared memory for signal!\n");
+	if (fd == -1) dFatal(D_ERR_SHAREDMEM, "Could not open shared memory for signal!");
 
 	int r = ftruncate(fd, SIG_SIZE*4);
-	if (r == -1) handleError(ERR_INNER, FATAL, "Could not ftruncate!\n");
+	if (r == -1) dFatal(D_ERR_INTERNAL, "Could not ftruncate!");
 
 	void* sigMem = mmap(NULL, SIG_SIZE*4, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-	if (sigMem == MAP_FAILED) handleError(ERR_MEM, FATAL, "Could not mmap signal memory!\n");
+	if (sigMem == MAP_FAILED) dFatal(D_ERR_MEM, "Could not mmap signal memory!");
 
 	close(fd);
 	return (signal_t*) sigMem;
@@ -97,7 +97,7 @@ static void setupKernel(uint8_t* memory, uint8_t* kernimg, signal_t* sigMem) {
 			uint8_t* textStart = memory + KERN_TEXT;
 			uint8_t* kernimgText = kernimg + sectHdr->shSectOff;
 
-			debug("Start of text section in kernel image: %p::Start of kernel text section in emulated memory:%p\n", kernimgText, textStart);
+			dDebug(DB_DETAIL, "Start of text section in kernel image: %p::Start of kernel text section in emulated memory:%p", kernimgText, textStart);
 
 			memcpy(textStart, kernimgText, sectHdr->shSectSize);
 		}
@@ -109,12 +109,13 @@ static void setupKernel(uint8_t* memory, uint8_t* kernimg, signal_t* sigMem) {
 		.entry = kernEntry
 	};
 	int ret = setExecSignal(shellCPUSignal, &metadata);
-	if (ret == -1) handleError(ERR_SIGNAL, FATAL, "No access for exec signal!\n");
+	if (ret == -1) dFatal(D_ERR_SIGNAL, "No access for exec signal!");
+	dLog(D_NONE, DSEV_INFO, "Kernel has been set up. Exec signal has now been set.");
 }
 
 static void redirectOut(const char* filename) {
 	int fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-	if (fd == -1) handleError(ERR_IO, FATAL, "Could not open logfile!\n");
+	if (fd == -1) dFatal(D_ERR_IO, "Could not open logfile!");
 
 	dup2(fd, STDOUT_FILENO);
 	dup2(fd, STDERR_FILENO);
@@ -151,6 +152,8 @@ static pid_t runCPU(char* cpuExe, bool log) {
 }
 
 int main(int argc, char const* argv[]) {
+	initDiagnostics(stdout, "ruemu.debug");
+
 	char* kernimgFilename = NULL;
 	char* cpuimg = "iaru0";
 	char* shell = "ash";
@@ -175,25 +178,22 @@ int main(int argc, char const* argv[]) {
 				else if (strcmp("shell", longOpts[optIdx].name) == 0) shell = optarg;
 				break;
 			default:
-				fprintf(stderr, "Usage: %s inputfile [--cpu cpuimg] [--shell shell] [-l]", argv[0]);
+				dLog(D_NONE, DSEV_WARN, "Usage: %s inputfile [--cpu cpuimg] [--shell shell] [-l]", argv[0]);
 				break;
 		}
 	}
 
 	kernimgFilename = (char*) argv[optind];
 
-	if (!kernimgFilename) {
-		fprintf(stderr, "No kernel image!\n");
-		exit(-1);
-	}
+	if (!kernimgFilename) dFatal(D_ERR_IO, "No kernel image!");
 	
 	char* ext = strstr(kernimgFilename, ".ark");
-	if (!ext) handleError(ERR_IO, FATAL, "Kernel image does not end in '.ark'!\n");
+	if (!ext) dFatal(D_ERR_IO, "Kernel image does not end in '.ark'!");
 
-	debug("Kernel file image is %s\n", kernimgFilename);
+	dDebug(DB_BASIC, "Kernel file image is %s", kernimgFilename);
 
-	printf("Creating environment...\n");
 	// Create necessary environment
+	dLog(D_NONE, DSEV_INFO, "Creating environment...\n");
 	void* kernimg = loadKernel(kernimgFilename);
 	void* emulatedMemory = createMemory();
 	signal_t* signalsMemory = createSignalMemory();
@@ -205,23 +205,34 @@ int main(int argc, char const* argv[]) {
 	pid_t shellPID = openShell(shell, log);
 	// Shell now takes control of the main stdout/err
 	// Emulator is to have its own outstream
+	int savedOut = dup(STDOUT_FILENO);
+	int savedErr = dup(STDERR_FILENO);
 	redirectOut("ruemu.log");
 
 
-	fprintf(stdout, "RUEMU: Setting kernel...\n");
-	debug("Start of emulated memory: %p\n", emulatedMemory);
+	dLog(D_NONE, DSEV_INFO, "Setting kernel...");
+	dDebug(DB_DETAIL, "Start of emulated memory: %p", emulatedMemory);
 	setupKernel(emulatedMemory, kernimg, signalsMemory);
 
 
 	int set = setReadySignal(GET_SIGNAL(signalsMemory, UNIVERSAL_SIG));
-	if (set == -1) handleError(ERR_SIGNAL, FATAL, "No access for ready signal!\n");
-	if (set == 0) handleError(ERR_SIGNAL, FATAL, "Could not set ready signal!\n");
-
+	if (set == -1) dFatal(D_ERR_SIGNAL, "No access for ready signal!");
+	if (set == 0) dFatal(D_ERR_SIGNAL, "Could not set ready signal!");
+	dLog(D_NONE, DSEV_INFO, "Ready signal has been set!");
 
 	
-	int status;
-	waitpid(shellPID, &status, 0);
-	waitpid(CPUPID, &status, 0);
+	int shellStatus, cpuStatus;
+	waitpid(shellPID, &shellStatus, 0);
+	waitpid(CPUPID, &cpuStatus, 0);
+
+	// Restore it
+	dup2(savedOut, STDOUT_FILENO);
+	dup2(savedErr, STDERR_FILENO);
+	close(savedOut);
+	close(savedErr);
+
+	// if (shellStatus == -1) fprintf(stdout, "Shell process ended")
+	if (cpuStatus == -1) dLog(D_NONE, DSEV_WARN, "CPU process ended abnormally. Check the log.");
 
 	// munmap(kernimg, )
 	munmap(emulatedMemory, MEMORY_SPACE_SIZE);

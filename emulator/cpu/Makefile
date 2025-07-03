@@ -1,9 +1,13 @@
+SHARED = ../../shared
+HEADERS = ../../headers
+OUT = ../../out
+
 CC = gcc
 CFLAGS = -Wall
-INCLUDES = -I../../headers/emulator/cpu -I../../headers/emulator -I../../headers
+INCLUDES = -I$(HEADERS)/emulator/cpu -I$(HEADERS)/emulator -I$(HEADERS)
 
-SRCS = cpu.c cpuError.c ../../shared/emSignal.c
-TARGET = ../../out/iaru0
+SRCS = cpu.c $(SHARED)/emSignal.c $(SHARED)/diagnostics.c
+TARGET = $(OUT)/iaru0
 
 # ifeq ($(MAKECMDGOALS),windows)
 # SRCS := $(SRCS) getline.c
@@ -20,7 +24,7 @@ all: cpu
 cpu: $(OBJS)
 	$(CC) $(CFLAGS) -o $(TARGET) $(OBJS)
 
-debug: CFLAGS += -g -O0 -DDEBUG
+debug: CFLAGS += -g -O0 -DDEBUG=1
 debug: cpu
 
 # lib: $(SRCS)
@@ -28,5 +32,5 @@ debug: cpu
 
 clean:
 	rm -f *.o
-	rm -f ../../shared/*.o
-	rm -f ../../out/iaru0
+	rm -f $(SHARED)/*.o
+	rm -f $(OUT)/iaru0

@@ -1,6 +1,5 @@
-#ifndef _IPC_H_
-#define _IPC_h_
-
+#ifndef _SHMEM_H_
+#define _SHMEM_h_
 
 #include <stdbool.h>
 
@@ -10,11 +9,5 @@
 #define MEMORY_SPACE_SIZE (4L * 1024 * 1024 * 1024) // 4GB
 // #define SIG_SPACE_SIZE
 
-
-void* attachSharedMemory(char* name, int size);
-
-bool detachSharedMemory(void* memory);
-
-void destorySharedMemory(char* name);
 
 #endif

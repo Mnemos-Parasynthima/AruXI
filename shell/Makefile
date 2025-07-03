@@ -1,9 +1,13 @@
+SHARED = ../shared
+HEADERS = ../headers
+OUT = ../out
+
 CC = gcc
 CFLAGS = -Wall
-INCLUDES = -I../headers/shell -I../headers
+INCLUDES = -I$(HEADERS)/shell -I$(HEADERS)
 
-SRCS = shell.c shellError.c ../shared/emSignal.c
-TARGET = ../out/ash
+SRCS = shell.c signalHandler.c $(SHARED)/emSignal.c $(SHARED)/diagnostics.c
+TARGET = $(OUT)/ash
 
 # ifeq ($(MAKECMDGOALS),windows)
 # SRCS := $(SRCS) getline.c
@@ -20,8 +24,7 @@ all: shell
 shell: $(OBJS)
 	$(CC) $(CFLAGS) -o $(TARGET) $(OBJS)
 
-
-debug: CFLAGS += -g -O0 -DDEBUG
+debug: CFLAGS += -g -O0 -DDEBUG=1
 debug: shell
 
 # lib: $(SRCS)
@@ -29,5 +32,5 @@ debug: shell
 
 clean:
 	rm -f *.o
-	rm -f ../shared/*.o
-	rm -f ../out/ash
+	rm -f $(SHARED)/*.o
+	rm -f $(OUT)/ash

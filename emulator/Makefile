@@ -1,9 +1,13 @@
+SHARED = ../shared
+HEADERS = ../headers
+OUT = ../out
+
 CC = gcc
 CFLAGS = -Wall
-INCLUDES = -I../headers/emulator -I../headers
+INCLUDES = -I$(HEADERS)/emulator -I$(HEADERS)
 
-SRCS = emulator.c emulatorError.c ../shared/emSignal.c
-TARGET = ../out/ruemu
+SRCS = emulator.c $(SHARED)/diagnostics.c $(SHARED)/emSignal.c
+TARGET = $(OUT)/ruemu
 
 # ifeq ($(MAKECMDGOALS),windows)
 # SRCS := $(SRCS) getline.c
@@ -23,7 +27,7 @@ ruemu: $(OBJS)
 cpu:
 	(cd cpu && make $@)
 
-debug: CFLAGS += -g -O0 -DDEBUG
+debug: CFLAGS += -g -O0 -DDEBUG=1
 debug: ruemu
 
 # lib: $(SRCS)
@@ -32,5 +36,5 @@ debug: ruemu
 clean:
 	(cd cpu && make $@)
 	rm -f *.o
-	rm -f ../shared/*.o
-	rm -f ../out/ruemu
+	rm -f $(SHARED)/*.o
+	rm -f $(OUT)/ruemu

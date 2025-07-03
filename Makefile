@@ -14,7 +14,7 @@ ruemu:
 	(cd emulator && make $@)
 
 cpu:
-	(cd emulator && make $@)
+	(cd emulator/cpu && make $@)
 
 kernel: arxsm
 	(cd kernel && make $@)
