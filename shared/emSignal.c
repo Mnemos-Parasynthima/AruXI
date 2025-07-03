@@ -31,6 +31,43 @@ void setupSignals(signal_t* signalMemory) {
 	shellCPUSignals->payloadValid = 0x0;
 }
 
+int setReadySignal(signal_t* signal) {
+	uint8_t enable = SIG_GET(signal->intEnable, emSIG_READY_IDX);
+	if (enable != 1) return -1;
+
+	signal->interrupts = SIG_SET(signal->interrupts, emSIG_READY_IDX);
+
+	return SIG_GET(signal->interrupts, emSIG_READY_IDX);
+}
+
+int ackReadySignal(signal_t* signal) {
+	uint8_t enable = SIG_GET(signal->intEnable, emSIG_READY_IDX);
+	if (enable != 1) return -1;
+
+	signal->ackMask = SIG_SET(signal->ackMask, emSIG_READY_IDX);
+
+	return SIG_GET(signal->ackMask, emSIG_READY_IDX);
+}
+
+int setShutdownSignal(signal_t* signal) {
+	uint8_t enable = SIG_GET(signal->intEnable, emSIG_SHUTDOWN_IDX);
+	if (enable != 1) return -1;
+
+	signal->interrupts = SIG_SET(signal->interrupts, emSIG_SHUTDOWN_IDX);
+
+	return SIG_GET(signal->interrupts, emSIG_SHUTDOWN_IDX);
+}
+
+int ackShutdownSignal(signal_t* signal) {
+	uint8_t enable = SIG_GET(signal->intEnable, emSIG_SHUTDOWN_IDX);
+	if (enable != 1) return -1;
+
+	signal->ackMask = SIG_SET(signal->ackMask, emSIG_SHUTDOWN_IDX);
+
+	return SIG_GET(signal->ackMask, emSIG_SHUTDOWN_IDX);
+}
+
+
 int setExecSignal(signal_t* signal, execprog_md* metadata) {
 	// Make sure the signal entry allows for exec
 	uint8_t enable = SIG_GET(signal->intEnable, emSIG_EXEC_IDX);
@@ -42,19 +79,14 @@ int setExecSignal(signal_t* signal, execprog_md* metadata) {
 	// Fill out metadata
 	signal->metadata.execprog.entry = metadata->entry;
 
-	return 0;
+	return SIG_GET(signal->interrupts, emSIG_EXEC_IDX);
 }
 
-signal_t* getExecSignal(signal_t* sigMem) {
-	
-}
-
-int setReadySignal(signal_t* signal) {
-	// Make sure the signal entry allows for ready
-	uint8_t enable = SIG_GET(signal->intEnable, emSIG_READY_IDX);
+int ackExecSignal(signal_t* signal) {
+	uint8_t enable = SIG_GET(signal->intEnable, emSIG_EXEC_IDX);
 	if (enable != 1) return -1;
 
-	signal->interrupts = SIG_SET(signal->interrupts, emSIG_READY_IDX);
+	signal->ackMask = SIG_SET(signal->ackMask, emSIG_EXEC_IDX);
 
-	return SIG_GET(signal->interrupts, emSIG_READY_IDX);
+	return SIG_GET(signal->ackMask, emSIG_EXEC_IDX);
 }

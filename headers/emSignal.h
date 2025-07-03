@@ -59,8 +59,33 @@ typedef struct Signal {
 
 void setupSignals(signal_t* signalMemory);
 
-int setExecSignal(signal_t* signal, execprog_md* metadata);
-
+// Universal signals
 int setReadySignal(signal_t* signal);
+int ackReadySignal(signal_t* signal);
+
+int setFaultSignal(signal_t* signal);
+int ackFaultSignal(signal_t* signal);
+
+int setShutdownSignal(signal_t* signal);
+int ackShutdownSignal(signal_t* signal);
+
+// CPU-Emulator signals
+
+
+// Shell-Emulator signals
+
+
+// CPU-Shell signals
+int setExecSignal(signal_t* signal, execprog_md* metadata);
+int ackExecSignal(signal_t* signal);
+
+int setKillSignal(signal_t* signal);
+int ackKillSignal(signal_t* signal);
+
+int setExitSignal(signal_t* signal);
+int ackExitSignal(signal_t* signal);
+
+int setErrorSignal(signal_t* signal, execprog_md* metadata);
+int ackErrorSignal(signal_t* signal);
 
 #endif
