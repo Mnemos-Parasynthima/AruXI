@@ -21,7 +21,8 @@ typedef enum {
 	// Specific types
 
 	// Emulator
-	D_ERR_INVALID_FORMAT
+	D_ERR_INVALID_FORMAT,
+	D_ERR_INVALID_KERNEL
 } errType;
 
 typedef enum {
