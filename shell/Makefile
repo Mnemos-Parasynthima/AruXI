@@ -6,7 +6,7 @@ CC = gcc
 CFLAGS = -Wall
 INCLUDES = -I$(HEADERS)/shell -I$(HEADERS)
 
-SRCS = shell.c signalHandler.c $(SHARED)/emSignal.c $(SHARED)/diagnostics.c
+SRCS = shell.c  environment.c parser.c signalHandler.c $(SHARED)/emSignal.c $(SHARED)/diagnostics.c
 TARGET = $(OUT)/ash
 
 # ifeq ($(MAKECMDGOALS),windows)
@@ -24,7 +24,7 @@ all: shell
 shell: $(OBJS)
 	$(CC) $(CFLAGS) -o $(TARGET) $(OBJS)
 
-debug: CFLAGS += -g -O0 -DDEBUG=1
+debug: CFLAGS += -g -O0 -DDEBUG=2
 debug: shell
 
 # lib: $(SRCS)

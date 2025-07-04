@@ -1,6 +1,8 @@
 #ifndef _DIAGNOSTICS_H_
 #define _DIAGNOSTICS_H_
 
+#include <stdio.h>
+
 #define RESET "\x1b[0m"
 #define RED "\x1b[31m"
 #define GREEN "\x1b[32m"

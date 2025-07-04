@@ -5,7 +5,7 @@
 
 typedef void handler_t(int);
 
-void handleInterrupt();
+void handleInterrupt(int signum);
 
 handler_t* redefineSignal(int signum, handler_t* handler);
 

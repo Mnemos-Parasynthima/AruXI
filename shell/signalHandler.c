@@ -3,14 +3,20 @@
 #include <unistd.h>
 
 #include "signalHandler.h"
+#include "emSignal.h"
 
-void handleInterrupt() {
-	write(1, "Interrupted\n", 13);
-	exit(1);
+
+extern signal_t* sigMem;
+
+
+void handleInterrupt(int signum) {
+	write(STDOUT_FILENO, "Interrupted", 12);
+	return;
+	signal_t* sig = GET_SIGNAL(sigMem, UNIVERSAL_SIG);
+	setShutdownSignal(sig);
 }
 
-handler_t *redefineSignal(int signum, handler_t *handler)
-{
+handler_t* redefineSignal(int signum, handler_t* handler) {
 	struct sigaction action, prevAction;
 
 	action.sa_handler = handler;
