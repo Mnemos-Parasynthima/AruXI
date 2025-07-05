@@ -20,4 +20,6 @@ void appendPath(const char* path);
 
 void printEnv();
 
+char* pathtok(char* path, char** save);
+
 #endif

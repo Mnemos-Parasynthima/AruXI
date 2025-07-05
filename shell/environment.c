@@ -100,3 +100,38 @@ void appendPath(const char* path) {
 void printEnv() {
 	dLog(D_NONE, DSEV_WARN, "printEnv() NOT IMPLEMENTED!");
 }
+
+char* pathtok(char* _path, char** save) {
+	if (!save) return NULL;
+	if (!*save) return NULL;
+
+	const char delim = ':';
+
+	char* path = NULL;
+	if (!_path) path = *save;
+	else path = _path;
+
+	char* pathtok = path;
+	char* temp = pathtok;
+
+	if (!*path) return NULL;
+
+	// Restore
+	if (*(path-1) == '\0') *(path-1) = delim;
+
+	while (*temp != delim || *temp != '\0') {
+		temp++;
+	}
+
+	// At delim
+	if (*temp == '\0') {
+		// end of path string
+		*save = NULL;
+		return pathtok;
+	}
+
+	*temp = '\0';
+	*save = temp+1;
+
+	return pathtok;
+}
