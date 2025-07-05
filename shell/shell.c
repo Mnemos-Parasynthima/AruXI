@@ -9,6 +9,7 @@
 #include <sys/wait.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <termios.h>
 
 #include "emSignal.h"
 #include "shmem.h"
@@ -35,6 +36,22 @@ typedef enum {
 } action_t;
 
 
+
+/**
+ * Handle SIGINT (Ctrl+C) by simply ignoring it.
+ * @param signum 
+ */
+void handleSIGINT(int signum) {
+	tcflush(STDIN_FILENO, TCIFLUSH);
+}
+
+/**
+ * Handle SIGUSR1. SIGUSR1 indicates as a poke to tell the process to check the signal memory.
+ * @param signum 
+ */
+void handleSIGUSR1(int signum) {
+
+}
 
 void showSigState(int SIG, bool showMetadata, bool showPayload) {
 	signal_t* signal = GET_SIGNAL(sigMem, SIG);
@@ -288,8 +305,34 @@ action_t shellHelp(int argc, char** argv) {
 }
 
 action_t runProgram(int argc, char** argv) {
-	// TODO
-	dLog(D_NONE, DSEV_WARN, "runProgram() NOT IMPLEMENTED!");
+	if (argc < 1) {
+		dLog(D_NONE, DSEV_WARN, "Program not found!");
+		return SH_ERR;
+	}
+
+	char* program = argv[0];
+
+	// Check that the program is valid in path
+	EnvVar* path = getEnv("PATH");
+
+	char* pathsave = NULL;
+	char* pathStr = pathtok(path->value, &pathsave);
+	while (pathStr) {
+		dDebug(DB_BASIC, "path: %s", pathStr);
+		// Look for program in path
+
+
+		pathStr = pathtok(NULL, &pathsave);
+	}
+
+	signal_t* shellEmuSignal = GET_SIGNAL(sigMem, EMU_SHELL_SIG);
+	loadprog_md metadata = {
+		.program = program,
+		.argv = argv
+	};
+	int ret = setLoadSignal(shellEmuSignal, &metadata);
+	if (ret == -1) dFatal(D_ERR_SIGNAL, "No access for load signal!");
+
 	return SH_RUN;
 }
 
@@ -308,6 +351,8 @@ action_t eval(Command* cmd) {
 }
 
 int main(int argc, char const* argv[]) {
+	tcsetpgrp(STDIN_FILENO, getpid());
+
 	initDiagnostics(stdout, "shell.debug");
 
 	dLog(D_NONE, DSEV_INFO, "[ASH]: Loading...");
@@ -322,14 +367,15 @@ int main(int argc, char const* argv[]) {
 
 	close(fd);
 
-	// redefineSignal(SIGINT, &handleInterrupt);
+	redefineSignal(SIGINT, &handleSIGINT);
+	redefineSignal(SIGUSR1, &handleSIGUSR1);
 
 	sigMem = (signal_t*) _sigMem;
 
 	// Block until signal
 	signal_t* universalSig = GET_SIGNAL(sigMem, UNIVERSAL_SIG);
 	dDebug(DB_DETAIL, "Universal interrupts before getting ready: 0x%x", universalSig->interrupts);
-	dLog(D_NONE, DSEV_INFO, "[ASH]: Will now wait for read...");
+	dLog(D_NONE, DSEV_INFO, "[ASH]: Will now wait for ready...");
 	uint8_t ready = 0x0;
 	while (ready != 0x1) ready = SIG_GET(universalSig->interrupts, emSIG_READY_IDX);
 	dDebug(DB_DETAIL, "Universal interrupts after getting ready: 0x%x", universalSig->interrupts);
@@ -342,7 +388,6 @@ int main(int argc, char const* argv[]) {
 	dLog(D_NONE, DSEV_INFO, "[ASH]: Will now wait for exec acknowledged...");
 	uint8_t ackd = 0x0;
 	while (ackd != 0x1) ackd = SIG_GET(shellCPUSig->ackMask, emSIG_EXEC_IDX);
-
 
 	while (true) {
 		printf("%s", PROMPT);
@@ -359,13 +404,17 @@ int main(int argc, char const* argv[]) {
 		free(cmd.argv);
 		free(line);
 
+		// Wait for the program to finish before continuing
+		// if (act == SH_RUN) {
+		// 	dDebug(DB_BASIC, "Waiting for program to exit...");
+		// 	signal_t* sig = GET_SIGNAL(sigMem, SHELL_CPU_SIG);
+		// 	uint8_t exited = 0x0;
+		// 	while (exited != 0x1) exited = SIG_GET(sig->interrupts, emSIG_EXIT_IDX);
+		// 	dDebug(DB_BASIC, "Program has exit");
+		// }
+
 		if (act == SH_EXIT)	break;
 	}
-
-	// signal_t* universalSig = GET_SIGNAL(sigMem, UNIVERSAL_SIG);
-	// dLog(D_NONE, DSEV_INFO, "[ASH]: Will now wait for shutdown...");
-	// uint8_t shut = 0x0;
-	// while (shut != 0x1) shut = SIG_GET(universalSig->interrupts, emSIG_SHUTDOWN_IDX);
 
 	dLog(D_NONE, DSEV_INFO, "Shutting down...");
 	signal_t* sig = GET_SIGNAL(sigMem, UNIVERSAL_SIG);
@@ -373,7 +422,7 @@ int main(int argc, char const* argv[]) {
 	setShutdownSignal(sig);
 	dDebug(DB_DETAIL, "Universal interrupts after setting shutdown: 0x%x", universalSig->interrupts);
 
-	// Need to
+	// Need to wait for CPU to have ack'd the signal (only after it is done cleaning up)
 	ackd = 0x0;
 	while (ackd != 0x1) ackd = SIG_GET(sig->ackMask, emSIG_SHUTDOWN_IDX);
 

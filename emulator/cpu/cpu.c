@@ -41,18 +41,18 @@ int main(int argc, char const* argv[]) {
 
 	// Block until signal
 	signal_t* universalSig = GET_SIGNAL(sigMem, UNIVERSAL_SIG);
+	dDebug(DB_DETAIL, "After get: Universal interrupts as 0x%x", universalSig->interrupts);
 	dLog(D_NONE, DSEV_INFO, "Will now wait for ready...");
 	uint8_t ready = 0x0;
-	while (ready != 0x1) {
-		ready = SIG_GET(universalSig->interrupts, emSIG_READY_IDX);
-	}
-
+	while (ready != 0x1) ready = SIG_GET(universalSig->interrupts, emSIG_READY_IDX);
+	dDebug(DB_DETAIL, "After get sig ready: Universal interrupts as 0x%x", universalSig->interrupts);
 
 	// CPU has access to signal memory and emulated memory
 	dLog(D_NONE, DSEV_INFO, "CPU!");
 
 	// Get entry
 	signal_t* shellCPUSignal = GET_SIGNAL(sigMem, SHELL_CPU_SIG);
+	ready = 0x0;
 	while (ready != 0x1) ready = SIG_GET(shellCPUSignal->interrupts, emSIG_EXEC_IDX);
 	uint32_t entry = shellCPUSignal->metadata.execprog.entry;
 
@@ -60,17 +60,34 @@ int main(int argc, char const* argv[]) {
 
 	dLog(D_NONE, DSEV_INFO, "Setting up..running kernel at 0x%x...", entry);
 
+
+
+
+	
 	dLog(D_NONE, DSEV_INFO, "Now in idle state, ack exec sig");
 
-	shellCPUSignal->ackMask = SIG_SET(shellCPUSignal->ackMask, emSIG_EXEC_IDX);
+	int acked = ackExecSignal(shellCPUSignal);
+	if (acked == -1) dFatal(D_ERR_SIGNAL, "No access for exec signal!");
+	if (acked == 0) dFatal(D_ERR_SIGNAL, "Could not ack exec signal!");
 
 	uint32_t instr = *((uint32_t*)(emMem + entry));
 
 	dLog(D_NONE, DSEV_INFO, "Instruction at 0x%x: 0x%x", entry, instr);
 
-
+	dLog(D_NONE, DSEV_INFO, "Wating for shutdown...");
+	dDebug(DB_DETAIL, "Before get shutdown: Universal interrupts as 0x%x", universalSig->interrupts);
+	ready = 0x0;
+	while (ready != 0x1) ready = SIG_GET(universalSig->interrupts, emSIG_SHUTDOWN_IDX);
+	dDebug(DB_DETAIL, "After get shutdown: Universal interrupts as 0x%x", universalSig->interrupts);
+	
+	acked = ackShutdownSignal(universalSig);
+	if (acked != 1) dFatal(D_ERR_SIGNAL, "Could not ack shutdown for CPU!");
+	dDebug(DB_DETAIL, "After ack shutdown: Universal interrupts as 0x%x", universalSig->interrupts);
 	munmap(_sigMem, SIG_SIZE*4);
 	munmap(_emMem, MEMORY_SPACE_SIZE);
+
+
+	dLog(D_NONE, DSEV_INFO, "CPU exiting");
 
 	return 0;
 }

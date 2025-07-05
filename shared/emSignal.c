@@ -16,7 +16,7 @@ void setupSignals(signal_t* signalMemory) {
 	universalSignals->payloadValid = 0x0;
 	
 	emuShellSignals->interrupts = 0x0;
-	emuShellSignals->intEnable = emSIG_SAVE;
+	emuShellSignals->intEnable = emSIG_LOAD | emSIG_SAVE;
 	emuShellSignals->ackMask = 0x0;
 	emuShellSignals->payloadValid = 0x0;
 
@@ -29,6 +29,25 @@ void setupSignals(signal_t* signalMemory) {
 	shellCPUSignals->intEnable = emSIG_ERROR | emSIG_EXIT | emSIG_KILL | emSIG_EXEC;
 	shellCPUSignals->ackMask = 0x0;
 	shellCPUSignals->payloadValid = 0x0;
+}
+
+
+int setShutdownSignal(signal_t* signal) {
+	uint8_t enable = SIG_GET(signal->intEnable, emSIG_SHUTDOWN_IDX);
+	if (enable != 1) return -1;
+
+	signal->interrupts = SIG_SET(signal->interrupts, emSIG_SHUTDOWN_IDX);
+
+	return SIG_GET(signal->interrupts, emSIG_SHUTDOWN_IDX);
+}
+
+int ackShutdownSignal(signal_t* signal) {
+	uint8_t enable = SIG_GET(signal->intEnable, emSIG_SHUTDOWN_IDX);
+	if (enable != 1) return -1;
+
+	signal->ackMask = SIG_SET(signal->ackMask, emSIG_SHUTDOWN_IDX);
+
+	return SIG_GET(signal->ackMask, emSIG_SHUTDOWN_IDX);
 }
 
 int setReadySignal(signal_t* signal) {
@@ -49,22 +68,22 @@ int ackReadySignal(signal_t* signal) {
 	return SIG_GET(signal->ackMask, emSIG_READY_IDX);
 }
 
-int setShutdownSignal(signal_t* signal) {
-	uint8_t enable = SIG_GET(signal->intEnable, emSIG_SHUTDOWN_IDX);
+
+int setLoadSignal(signal_t* signal, loadprog_md* metadata) {
+	uint8_t enable = SIG_GET(signal->intEnable, emSIG_LOAD_IDX);
 	if (enable != 1) return -1;
 
-	signal->interrupts = SIG_SET(signal->interrupts, emSIG_SHUTDOWN_IDX);
+	signal->interrupts = SIG_SET(signal->interrupts, emSIG_LOAD_IDX);
+	signal->payloadValid = SIG_SET(signal->payloadValid, emSIG_LOAD_IDX);
 
-	return SIG_GET(signal->interrupts, emSIG_SHUTDOWN_IDX);
+	signal->metadata.loadprog.program = metadata->program;
+	signal->metadata.loadprog.argv = metadata->argv;
+
+	return SIG_GET(signal->interrupts, emSIG_LOAD_IDX);
 }
 
-int ackShutdownSignal(signal_t* signal) {
-	uint8_t enable = SIG_GET(signal->intEnable, emSIG_SHUTDOWN_IDX);
-	if (enable != 1) return -1;
+int ackLoadSignal(signal_t* signal) {
 
-	signal->ackMask = SIG_SET(signal->ackMask, emSIG_SHUTDOWN_IDX);
-
-	return SIG_GET(signal->ackMask, emSIG_SHUTDOWN_IDX);
 }
 
 

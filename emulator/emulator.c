@@ -81,7 +81,7 @@ static void setupKernel(uint8_t* memory, uint8_t* kernimg, signal_t* sigMem) {
 	AOEFFheader* header = (AOEFFheader*) kernimg;
 	uint32_t kernEntry = header->hEntry;
 
-	AOEFFSectHeader* sectHdrs = kernimg + header->hSectOff;
+	AOEFFSectHeader* sectHdrs = (AOEFFSectHeader*)(kernimg + header->hSectOff);
 	uint32_t sectHdrsSize = header->hSectSize;
 
 	// Set the data and text information
@@ -127,11 +127,15 @@ static pid_t openShell(char* shellExe, bool log) {
 	if (pid == -1) {
 		return -1;
 	} else if (pid == 0) {
+		// setpgid(0, 0);
 		char* args[] = {shellExe, NULL};
 		execv(shellExe, args);
 		perror("fail to exec shell");
 		exit(1);
 	}
+
+	setpgid(pid, pid);
+	tcsetpgrp(STDIN_FILENO, pid);
 
 	return pid;
 }
@@ -141,6 +145,7 @@ static pid_t runCPU(char* cpuExe, bool log) {
 	if (pid == -1) {
 		return -1;
 	} else if (pid == 0) {
+		setpgid(0, 0);
 		redirectOut("cpu.log");
 		char* args[] = {cpuExe, NULL};
 		execv(cpuExe, args);
@@ -193,11 +198,12 @@ int main(int argc, char const* argv[]) {
 	dDebug(DB_BASIC, "Kernel file image is %s", kernimgFilename);
 
 	// Create necessary environment
-	dLog(D_NONE, DSEV_INFO, "Creating environment...\n");
+	dLog(D_NONE, DSEV_INFO, "Creating environment...");
 	void* kernimg = loadKernel(kernimgFilename);
 	void* emulatedMemory = createMemory();
 	signal_t* signalsMemory = createSignalMemory();
 	setupSignals(signalsMemory);
+	dDebug(DB_DETAIL, "Set signals as clean");
 
 	// Spawn CPU
 	pid_t CPUPID = runCPU(cpuimg, log);
@@ -219,11 +225,19 @@ int main(int argc, char const* argv[]) {
 	if (set == -1) dFatal(D_ERR_SIGNAL, "No access for ready signal!");
 	if (set == 0) dFatal(D_ERR_SIGNAL, "Could not set ready signal!");
 	dLog(D_NONE, DSEV_INFO, "Ready signal has been set!");
+	dDebug(DB_DETAIL, "Universal signals after setting ready signal: 0x%x", GET_SIGNAL(signalsMemory, UNIVERSAL_SIG)->interrupts);
 
-	
+
+
+
 	int shellStatus, cpuStatus;
 	waitpid(shellPID, &shellStatus, 0);
+	dLog(D_NONE, DSEV_INFO, "Shell exited with code %d", WEXITSTATUS(shellStatus));
 	waitpid(CPUPID, &cpuStatus, 0);
+	dLog(D_NONE, DSEV_INFO, "CPU exited with code %d", WEXITSTATUS(cpuStatus));
+
+	dDebug(DB_DETAIL, "Universal interrupts after collecting shell and cpu: 0x%x", GET_SIGNAL(signalsMemory, UNIVERSAL_SIG)->interrupts);
+
 
 	// Restore it
 	dup2(savedOut, STDOUT_FILENO);
@@ -232,7 +246,7 @@ int main(int argc, char const* argv[]) {
 	close(savedErr);
 
 	// if (shellStatus == -1) fprintf(stdout, "Shell process ended")
-	if (cpuStatus == -1) dLog(D_NONE, DSEV_WARN, "CPU process ended abnormally. Check the log.");
+	if (WEXITSTATUS(cpuStatus) == -1) dLog(D_NONE, DSEV_WARN, "CPU process ended abnormally. Check the log.");
 
 	// munmap(kernimg, )
 	munmap(emulatedMemory, MEMORY_SPACE_SIZE);

@@ -27,7 +27,7 @@ ruemu: $(OBJS)
 cpu:
 	(cd cpu && make $@)
 
-debug: CFLAGS += -g -O0 -DDEBUG=1
+debug: CFLAGS += -g -O0 -DDEBUG=2
 debug: ruemu
 
 # lib: $(SRCS)
@@ -36,5 +36,4 @@ debug: ruemu
 clean:
 	(cd cpu && make $@)
 	rm -f *.o
-	rm -f $(SHARED)/*.o
 	rm -f $(OUT)/ruemu

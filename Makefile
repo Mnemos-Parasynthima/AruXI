@@ -36,7 +36,9 @@ clean:
 	(cd assembler && make $@)
 	(cd emulator && make $@)
 	(cd shell && make $@)
-	rm -f *.o
-	rm -f *.so
 	rm -f out/arxsm
 	rm -f out/*.ark
+
+clean_logs:
+	rm -f out/*.debug
+	rm -f out/*.log

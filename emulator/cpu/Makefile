@@ -24,7 +24,7 @@ all: cpu
 cpu: $(OBJS)
 	$(CC) $(CFLAGS) -o $(TARGET) $(OBJS)
 
-debug: CFLAGS += -g -O0 -DDEBUG=1
+debug: CFLAGS += -g -O0 -DDEBUG=2
 debug: cpu
 
 # lib: $(SRCS)

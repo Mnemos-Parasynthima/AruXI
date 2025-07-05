@@ -3,9 +3,8 @@
 
 #include <signal.h>
 
-typedef void handler_t(int);
 
-void handleInterrupt(int signum);
+typedef void handler_t(int);
 
 handler_t* redefineSignal(int signum, handler_t* handler);
 
