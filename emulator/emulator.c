@@ -63,21 +63,21 @@ static void* createMemory() {
 	return emMem;
 }
 
-static signal_t* createSignalMemory() {
+static SigMem* createSignalMemory() {
 	int fd = shm_open(SHMEM_SIG, O_CREAT | O_RDWR, 0666);
 	if (fd == -1) dFatal(D_ERR_SHAREDMEM, "Could not open shared memory for signal!");
 
-	int r = ftruncate(fd, SIG_SIZE*4);
+	int r = ftruncate(fd, SIG_MEM_SIZE);
 	if (r == -1) dFatal(D_ERR_INTERNAL, "Could not ftruncate!");
 
-	void* sigMem = mmap(NULL, SIG_SIZE*4, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+	void* sigMem = mmap(NULL, SIG_MEM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
 	if (sigMem == MAP_FAILED) dFatal(D_ERR_MEM, "Could not mmap signal memory!");
 
 	close(fd);
-	return (signal_t*) sigMem;
+	return (SigMem*) sigMem;
 }
 
-static void setupKernel(uint8_t* memory, uint8_t* kernimg, signal_t* sigMem) {
+static void setupKernel(uint8_t* memory, uint8_t* kernimg, signal_t* sigs) {
 	AOEFFheader* header = (AOEFFheader*) kernimg;
 	uint32_t kernEntry = header->hEntry;
 
@@ -104,7 +104,7 @@ static void setupKernel(uint8_t* memory, uint8_t* kernimg, signal_t* sigMem) {
 	}
 
 	// Even though this is the emulator, exec signal is only available for shell-cpu
-	signal_t* shellCPUSignal = GET_SIGNAL(sigMem, SHELL_CPU_SIG);
+	signal_t* shellCPUSignal = GET_SIGNAL(sigs, SHELL_CPU_SIG);
 	execprog_md metadata = {
 		.entry = kernEntry
 	};
@@ -191,7 +191,7 @@ int main(int argc, char const* argv[]) {
 	kernimgFilename = (char*) argv[optind];
 
 	if (!kernimgFilename) dFatal(D_ERR_IO, "No kernel image!");
-	
+
 	char* ext = strstr(kernimgFilename, ".ark");
 	if (!ext) dFatal(D_ERR_IO, "Kernel image does not end in '.ark'!");
 
@@ -201,7 +201,7 @@ int main(int argc, char const* argv[]) {
 	dLog(D_NONE, DSEV_INFO, "Creating environment...");
 	void* kernimg = loadKernel(kernimgFilename);
 	void* emulatedMemory = createMemory();
-	signal_t* signalsMemory = createSignalMemory();
+	SigMem* signalsMemory = createSignalMemory();
 	setupSignals(signalsMemory);
 	dDebug(DB_DETAIL, "Set signals as clean");
 
@@ -215,17 +215,20 @@ int main(int argc, char const* argv[]) {
 	int savedErr = dup(STDERR_FILENO);
 	redirectOut("ruemu.log");
 
+	signalsMemory->metadata.emulatorPID = getpid();
+	signalsMemory->metadata.cpuPID = CPUPID;
+	signalsMemory->metadata.shellPID = shellPID;
 
 	dLog(D_NONE, DSEV_INFO, "Setting kernel...");
 	dDebug(DB_DETAIL, "Start of emulated memory: %p", emulatedMemory);
-	setupKernel(emulatedMemory, kernimg, signalsMemory);
+	setupKernel(emulatedMemory, kernimg, signalsMemory->signals);
 
 
-	int set = setReadySignal(GET_SIGNAL(signalsMemory, UNIVERSAL_SIG));
+	int set = setReadySignal(GET_SIGNAL(signalsMemory->signals, UNIVERSAL_SIG));
 	if (set == -1) dFatal(D_ERR_SIGNAL, "No access for ready signal!");
 	if (set == 0) dFatal(D_ERR_SIGNAL, "Could not set ready signal!");
 	dLog(D_NONE, DSEV_INFO, "Ready signal has been set!");
-	dDebug(DB_DETAIL, "Universal signals after setting ready signal: 0x%x", GET_SIGNAL(signalsMemory, UNIVERSAL_SIG)->interrupts);
+	dDebug(DB_DETAIL, "Universal signals after setting ready signal: 0x%x", GET_SIGNAL(signalsMemory->signals, UNIVERSAL_SIG)->interrupts);
 
 
 
@@ -236,7 +239,7 @@ int main(int argc, char const* argv[]) {
 	waitpid(CPUPID, &cpuStatus, 0);
 	dLog(D_NONE, DSEV_INFO, "CPU exited with code %d", WEXITSTATUS(cpuStatus));
 
-	dDebug(DB_DETAIL, "Universal interrupts after collecting shell and cpu: 0x%x", GET_SIGNAL(signalsMemory, UNIVERSAL_SIG)->interrupts);
+	dDebug(DB_DETAIL, "Universal interrupts after collecting shell and cpu: 0x%x", GET_SIGNAL(signalsMemory->signals, UNIVERSAL_SIG)->interrupts);
 
 
 	// Restore it
@@ -250,7 +253,7 @@ int main(int argc, char const* argv[]) {
 
 	// munmap(kernimg, )
 	munmap(emulatedMemory, MEMORY_SPACE_SIZE);
-	munmap(signalsMemory, SIG_SIZE*4);
+	munmap(signalsMemory, SIG_MEM_SIZE);
 	
 	return 0;
 }

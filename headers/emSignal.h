@@ -2,6 +2,7 @@
 #define _IPC_SIGNAL_H_
 
 #include <stdint.h>
+#include <sys/types.h>
 
 
 #define emSIG_SHUTDOWN 0x80000000
@@ -36,7 +37,7 @@
 #define EMU_CPU_SIG 2
 #define SHELL_CPU_SIG 3
 
-#define GET_SIGNAL(mem, sigType) (&mem[sigType])
+#define GET_SIGNAL(sigs, sigType) (&sigs[sigType])
 
 typedef struct LoadprogMetadata {
 	char* program;
@@ -63,9 +64,22 @@ typedef struct Signal {
 	} metadata;
 } signal_t;
 
-#define SIG_SIZE sizeof(signal_t)
+typedef struct SignalMetadata {
+	pid_t emulatorPID;
+	pid_t shellPID;
+	pid_t cpuPID;
+	uint8_t signalType;
+} signal_md;
 
-void setupSignals(signal_t* signalMemory);
+typedef struct SignalMemory {
+	signal_md metadata;
+	signal_t signals[4];
+} SigMem;
+
+#define SIG_MEM_SIZE sizeof(SigMem)
+
+
+void setupSignals(SigMem* signalMemory);
 
 // Universal signals
 int setReadySignal(signal_t* signal);

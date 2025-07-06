@@ -20,7 +20,7 @@
 
 
 const char* PROMPT = "ash> ";
-signal_t* sigMem = NULL;
+SigMem* sigMem = NULL;
 EnvVar* shellEnv; // Array of environmental variables
 
 
@@ -54,7 +54,7 @@ void handleSIGUSR1(int signum) {
 }
 
 void showSigState(int SIG, bool showMetadata, bool showPayload) {
-	signal_t* signal = GET_SIGNAL(sigMem, SIG);
+	signal_t* signal = GET_SIGNAL(sigMem->signals, SIG);
 
 	char* type;
 	switch (SIG)	{
@@ -62,7 +62,7 @@ void showSigState(int SIG, bool showMetadata, bool showPayload) {
 		case EMU_SHELL_SIG: type = "emu-shell"; break;
 		case EMU_CPU_SIG: type = "emu-cpu"; break;
 		case SHELL_CPU_SIG: type = "shell-cpu"; break;
-		default:	break;
+		default: break;
 	}
 
 	printf("Type::%s\n", type);
@@ -105,6 +105,12 @@ action_t viewState(int argc, char** argv) {
 		dLog(D_NONE, DSEV_WARN, "Cannot show payload if no metadata!");
 		return SH_ERR;
 	}
+
+	printf("Metadata::\n");
+	printf("\t.EmulatorPID = %d\n", sigMem->metadata.emulatorPID);
+	printf("\t.CPUPID = %d\n", sigMem->metadata.cpuPID);
+	printf("\t.ShellPID = %d\n", sigMem->metadata.shellPID);
+	printf("\t.SignalType = %d\n", sigMem->metadata.signalType);
 
 	if (type) {
 		if (strcmp(type, "universal") == 0) showSigState(UNIVERSAL_SIG, showPayloadMetadata, showPayload);
@@ -325,7 +331,7 @@ action_t runProgram(int argc, char** argv) {
 		pathStr = pathtok(NULL, &pathsave);
 	}
 
-	signal_t* shellEmuSignal = GET_SIGNAL(sigMem, EMU_SHELL_SIG);
+	signal_t* shellEmuSignal = GET_SIGNAL(sigMem->signals, EMU_SHELL_SIG);
 	loadprog_md metadata = {
 		.program = program,
 		.argv = argv
@@ -362,7 +368,7 @@ int main(int argc, char const* argv[]) {
 	int fd = shm_open(SHMEM_SIG, O_RDWR, 0666);
 	if (fd == -1) dFatal(D_ERR_SHAREDMEM, "Could not open shared memory for signal!");
 
-	void* _sigMem = mmap(NULL, SIG_SIZE*4, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+	void* _sigMem = mmap(NULL, SIG_MEM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
 	if (_sigMem == MAP_FAILED) dFatal(D_ERR_MEM, "Could not mmap signal memory!");
 
 	close(fd);
@@ -370,10 +376,10 @@ int main(int argc, char const* argv[]) {
 	redefineSignal(SIGINT, &handleSIGINT);
 	redefineSignal(SIGUSR1, &handleSIGUSR1);
 
-	sigMem = (signal_t*) _sigMem;
+	sigMem = (SigMem*) _sigMem;
 
 	// Block until signal
-	signal_t* universalSig = GET_SIGNAL(sigMem, UNIVERSAL_SIG);
+	signal_t* universalSig = GET_SIGNAL(sigMem->signals, UNIVERSAL_SIG);
 	dDebug(DB_DETAIL, "Universal interrupts before getting ready: 0x%x", universalSig->interrupts);
 	dLog(D_NONE, DSEV_INFO, "[ASH]: Will now wait for ready...");
 	uint8_t ready = 0x0;
@@ -384,7 +390,7 @@ int main(int argc, char const* argv[]) {
 	// But the shell must run after the kernel has finished running and the cpu is idle
 	// This will happen by the cpu setting the acknowledged on the shell-cpu:exec signal
 
-	signal_t* shellCPUSig = GET_SIGNAL(sigMem, SHELL_CPU_SIG);
+	signal_t* shellCPUSig = GET_SIGNAL(sigMem->signals, SHELL_CPU_SIG);
 	dLog(D_NONE, DSEV_INFO, "[ASH]: Will now wait for exec acknowledged...");
 	uint8_t ackd = 0x0;
 	while (ackd != 0x1) ackd = SIG_GET(shellCPUSig->ackMask, emSIG_EXEC_IDX);
@@ -407,7 +413,7 @@ int main(int argc, char const* argv[]) {
 		// Wait for the program to finish before continuing
 		// if (act == SH_RUN) {
 		// 	dDebug(DB_BASIC, "Waiting for program to exit...");
-		// 	signal_t* sig = GET_SIGNAL(sigMem, SHELL_CPU_SIG);
+		// 	signal_t* sig = GET_SIGNAL(sigMem->signals, SHELL_CPU_SIG);
 		// 	uint8_t exited = 0x0;
 		// 	while (exited != 0x1) exited = SIG_GET(sig->interrupts, emSIG_EXIT_IDX);
 		// 	dDebug(DB_BASIC, "Program has exit");
@@ -417,7 +423,7 @@ int main(int argc, char const* argv[]) {
 	}
 
 	dLog(D_NONE, DSEV_INFO, "Shutting down...");
-	signal_t* sig = GET_SIGNAL(sigMem, UNIVERSAL_SIG);
+	signal_t* sig = GET_SIGNAL(sigMem->signals, UNIVERSAL_SIG);
 	dDebug(DB_DETAIL, "Universal interrupts before setting shutdown: 0x%x", universalSig->interrupts);
 	setShutdownSignal(sig);
 	dDebug(DB_DETAIL, "Universal interrupts after setting shutdown: 0x%x", universalSig->interrupts);
@@ -426,7 +432,7 @@ int main(int argc, char const* argv[]) {
 	ackd = 0x0;
 	while (ackd != 0x1) ackd = SIG_GET(sig->ackMask, emSIG_SHUTDOWN_IDX);
 
-	munmap(sigMem, SIG_SIZE*4);
+	munmap(sigMem, SIG_MEM_SIZE);
 	deleteEnv();
 
 	dLog(D_NONE, DSEV_INFO, "Shell exiting");

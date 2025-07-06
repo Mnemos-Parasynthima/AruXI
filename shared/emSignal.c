@@ -1,14 +1,21 @@
 #include "emSignal.h"
 
 
-void setupSignals(signal_t* signalMemory) {
+void setupSignals(SigMem* signalMemory) {
 	// This can only run once!!!
 	// At first, there's no distiniction, order can change at any time based on this implementation
 
-	signal_t* universalSignals = &(signalMemory[UNIVERSAL_SIG]);
-	signal_t* emuShellSignals = &(signalMemory[EMU_SHELL_SIG]);
-	signal_t* emuCPUSignals = &(signalMemory[EMU_CPU_SIG]);
-	signal_t* shellCPUSignals = &(signalMemory[SHELL_CPU_SIG]);
+	signalMemory->metadata.emulatorPID = -1;
+	signalMemory->metadata.shellPID = -1;
+	signalMemory->metadata.cpuPID = -1;
+	signalMemory->metadata.signalType = 0;
+
+	signal_t* sigs = signalMemory->signals;
+
+	signal_t* universalSignals = GET_SIGNAL(sigs, UNIVERSAL_SIG);
+	signal_t* emuShellSignals = GET_SIGNAL(sigs, EMU_SHELL_SIG);
+	signal_t* emuCPUSignals = GET_SIGNAL(sigs, EMU_CPU_SIG);
+	signal_t* shellCPUSignals = GET_SIGNAL(sigs, SHELL_CPU_SIG);
 
 	universalSignals->interrupts = 0x0;
 	universalSignals->intEnable = emSIG_SHUTDOWN | emSIG_FAULT | emSIG_READY;
