@@ -50,7 +50,34 @@ void handleSIGINT(int signum) {
  * @param signum 
  */
 void handleSIGUSR1(int signum) {
+	// Check metadata
 
+	uint8_t sigType = sigMem->metadata.signalType;
+	signal_t* sig = GET_SIGNAL(sigMem->signals, sigType);
+
+	uint32_t ints = sig->interrupts;
+	int i = 0;
+
+	while (i <= 31) {
+		uint8_t bit = (ints >> i) & 0b1;
+
+		if (bit == 0b1) {
+			switch (i) 			{
+				case emSIG_FAULT_IDX:
+					flushDebug();
+					munmap(sigMem, SIG_MEM_SIZE);
+					deleteEnv();
+					write(STDERR_FILENO, "Detected SIG_FAULT!\n", 20);
+					// ackFaultSignal(sig);
+					exit(1);
+					break;
+				default:
+					break;
+			}
+		}
+
+		i++;
+	}
 }
 
 void showSigState(int SIG, bool showMetadata, bool showPayload) {
@@ -416,7 +443,7 @@ int main(int argc, char const* argv[]) {
 		// 	signal_t* sig = GET_SIGNAL(sigMem->signals, SHELL_CPU_SIG);
 		// 	uint8_t exited = 0x0;
 		// 	while (exited != 0x1) exited = SIG_GET(sig->interrupts, emSIG_EXIT_IDX);
-		// 	dDebug(DB_BASIC, "Program has exit");
+		// 	dDebug(DB_BASIC, "Program has exited");
 		// }
 
 		if (act == SH_EXIT)	break;

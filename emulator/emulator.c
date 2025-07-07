@@ -21,6 +21,44 @@
 #define KERN_HEAP 0xD0080000
 #define KERN_STACK 0xF0080000
 
+
+SigMem* signalsMemory;
+
+/**
+ * Handle SIGUSR1. SIGUSR1 indicates as a poke to tell the process to check the signal memory.
+ * @param signum 
+ */
+void handleSIGUSR1(int signum) {
+	// Check metadata
+	write(STDERR_FILENO, "Got SIGUSR1\n", 13);
+	// uint8_t sigType = signalsMemory->metadata.signalType;
+	// signal_t* sig = GET_SIGNAL(signalsMemory->signals, sigType);
+
+	// uint32_t ints = sig->interrupts;
+	// int i = 0;
+
+	// while (i <= 31) {
+	// 	uint8_t bit = (ints >> i) & 0b1;
+
+	// 	if (bit == 0b1) {
+	// 		switch (i) 			{
+	// 			case emSIG_FAULT_IDX:
+	// 				munmap(signalsMemory, SIG_MEM_SIZE);
+	// 				deleteEnv();
+	// 				// Possible print?
+
+	// 				exit(1);
+	// 				break;
+	// 			default:
+	// 				break;
+	// 		}
+	// 	}
+
+	// 	i++;
+	// }
+}
+
+
 /**
  * Loads the kernel image binary into an mmap'd space for easy of acess, checking that the binary is in the proper format.
  * @param kernimg 
@@ -189,8 +227,13 @@ int main(int argc, char const* argv[]) {
 	}
 
 	kernimgFilename = (char*) argv[optind];
-
 	if (!kernimgFilename) dFatal(D_ERR_IO, "No kernel image!");
+
+	int shellExists = access(shell, F_OK);
+	if (shellExists == -1) dFatal(D_ERR_IO, "No shell binary!");
+
+	int cpuExists = access(cpuimg, F_OK);
+	if (cpuExists == -1) dFatal(D_ERR_IO, "No CPU binary!");
 
 	char* ext = strstr(kernimgFilename, ".ark");
 	if (!ext) dFatal(D_ERR_IO, "Kernel image does not end in '.ark'!");
@@ -201,7 +244,7 @@ int main(int argc, char const* argv[]) {
 	dLog(D_NONE, DSEV_INFO, "Creating environment...");
 	void* kernimg = loadKernel(kernimgFilename);
 	void* emulatedMemory = createMemory();
-	SigMem* signalsMemory = createSignalMemory();
+	signalsMemory = createSignalMemory();
 	setupSignals(signalsMemory);
 	dDebug(DB_DETAIL, "Set signals as clean");
 
@@ -249,7 +292,8 @@ int main(int argc, char const* argv[]) {
 	close(savedErr);
 
 	// if (shellStatus == -1) fprintf(stdout, "Shell process ended")
-	if (WEXITSTATUS(cpuStatus) == -1) dLog(D_NONE, DSEV_WARN, "CPU process ended abnormally. Check the log.");
+	if (WEXITSTATUS(shellStatus != 0)) dLog(D_NONE, DSEV_WARN, "Shell process ended abnormally. Check the logs.");
+	if (WEXITSTATUS(cpuStatus) != 0) dLog(D_NONE, DSEV_WARN, "CPU process ended abnormally. Check the logs.");
 
 	// munmap(kernimg, )
 	munmap(emulatedMemory, MEMORY_SPACE_SIZE);
