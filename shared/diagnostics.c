@@ -101,3 +101,9 @@ void dDebug(debugLevel level, const char* fmsg, ...) {
 	fprintf(debugStream, "[DEBUG::%d]: %s\n", level, buffer);
 #endif
 }
+
+void flushDebug() {
+#ifdef DEBUG
+	fflush(debugStream);
+#endif
+}

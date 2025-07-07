@@ -68,4 +68,9 @@ void dFatal(errType err, const char* fmsg, ...); // just like log but more geare
  */
 void dDebug(debugLevel level, const char* fmsg, ...);
 
+/**
+ * 
+ */
+void flushDebug();
+
 #endif
