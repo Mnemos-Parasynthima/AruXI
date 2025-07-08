@@ -57,24 +57,6 @@ int ackShutdownSignal(signal_t* signal) {
 	return SIG_GET(signal->ackMask, emSIG_SHUTDOWN_IDX);
 }
 
-int setReadySignal(signal_t* signal) {
-	uint8_t enable = SIG_GET(signal->intEnable, emSIG_READY_IDX);
-	if (enable != 1) return -1;
-
-	signal->interrupts = SIG_SET(signal->interrupts, emSIG_READY_IDX);
-
-	return SIG_GET(signal->interrupts, emSIG_READY_IDX);
-}
-
-int ackReadySignal(signal_t* signal) {
-	uint8_t enable = SIG_GET(signal->intEnable, emSIG_READY_IDX);
-	if (enable != 1) return -1;
-
-	signal->ackMask = SIG_SET(signal->ackMask, emSIG_READY_IDX);
-
-	return SIG_GET(signal->ackMask, emSIG_READY_IDX);
-}
-
 int setFaultSignal(signal_t* signal) {
 	uint8_t enable = SIG_GET(signal->intEnable, emSIG_FAULT_IDX);
 	if (enable != 1) return -1;
@@ -93,6 +75,25 @@ int ackFaultSignal(signal_t* signal) {
 	return SIG_GET(signal->ackMask, emSIG_FAULT_IDX);
 }
 
+int setReadySignal(signal_t* signal) {
+	uint8_t enable = SIG_GET(signal->intEnable, emSIG_READY_IDX);
+	if (enable != 1) return -1;
+
+	signal->interrupts = SIG_SET(signal->interrupts, emSIG_READY_IDX);
+
+	return SIG_GET(signal->interrupts, emSIG_READY_IDX);
+}
+
+int ackReadySignal(signal_t* signal) {
+	uint8_t enable = SIG_GET(signal->intEnable, emSIG_READY_IDX);
+	if (enable != 1) return -1;
+
+	signal->ackMask = SIG_SET(signal->ackMask, emSIG_READY_IDX);
+
+	return SIG_GET(signal->ackMask, emSIG_READY_IDX);
+}
+
+
 int setLoadSignal(signal_t* signal, loadprog_md* metadata) {
 	uint8_t enable = SIG_GET(signal->intEnable, emSIG_LOAD_IDX);
 	if (enable != 1) return -1;
@@ -107,9 +108,26 @@ int setLoadSignal(signal_t* signal, loadprog_md* metadata) {
 }
 
 int ackLoadSignal(signal_t* signal) {
+	uint8_t enable = SIG_GET(signal->intEnable, emSIG_LOAD_IDX);
+	if (enable != 1) return -1;
 
+	signal->ackMask = SIG_SET(signal->ackMask, emSIG_LOAD_IDX);
+
+	return SIG_GET(signal->ackMask, emSIG_LOAD_IDX);
 }
 
+
+int setErrorSignal(signal_t* signal) { return 0; }
+
+int ackErrorSignal(signal_t* signal) { return 0; }
+
+int setExitSignal(signal_t* signal) { return 0; }
+
+int ackExitSignal(signal_t* signal) { return 0; }
+
+int setKillSignal(signal_t* signal) { return 0; }
+
+int ackKillSignal(signal_t* signal) { return 0; }
 
 int setExecSignal(signal_t* signal, execprog_md* metadata) {
 	// Make sure the signal entry allows for exec

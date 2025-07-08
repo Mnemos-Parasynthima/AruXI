@@ -82,14 +82,14 @@ typedef struct SignalMemory {
 void setupSignals(SigMem* signalMemory);
 
 // Universal signals
-int setReadySignal(signal_t* signal);
-int ackReadySignal(signal_t* signal);
+int setShutdownSignal(signal_t* signal);
+int ackShutdownSignal(signal_t* signal);
 
 int setFaultSignal(signal_t* signal);
 int ackFaultSignal(signal_t* signal);
 
-int setShutdownSignal(signal_t* signal);
-int ackShutdownSignal(signal_t* signal);
+int setReadySignal(signal_t* signal);
+int ackReadySignal(signal_t* signal);
 
 // CPU-Emulator signals
 
@@ -99,16 +99,16 @@ int setLoadSignal(signal_t* signal, loadprog_md* metadata);
 int ackLoadSignal(signal_t* signal);
 
 // CPU-Shell signals
-int setExecSignal(signal_t* signal, execprog_md* metadata);
-int ackExecSignal(signal_t* signal);
-
-int setKillSignal(signal_t* signal);
-int ackKillSignal(signal_t* signal);
+int setErrorSignal(signal_t* signal);
+int ackErrorSignal(signal_t* signal);
 
 int setExitSignal(signal_t* signal);
 int ackExitSignal(signal_t* signal);
 
-int setErrorSignal(signal_t* signal);
-int ackErrorSignal(signal_t* signal);
+int setKillSignal(signal_t* signal);
+int ackKillSignal(signal_t* signal);
+
+int setExecSignal(signal_t* signal, execprog_md* metadata);
+int ackExecSignal(signal_t* signal);
 
 #endif
