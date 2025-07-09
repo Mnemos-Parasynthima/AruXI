@@ -1,5 +1,6 @@
 #include <signal.h>
 #include <sys/types.h>
+#include <pthread.h>
 
 #include "core.h"
 #include "mem.h"
@@ -12,6 +13,10 @@ extern core_t core;
 extern opcode_t imap[];
 extern char* istrmap[];
 extern SigMem* sigMem;
+
+extern pthread_mutex_t idleLock;
+extern pthread_cond_t idleCond;
+extern volatile bool IDLE;
 
 
 static void fault() {
@@ -308,15 +313,33 @@ void initCore() {
 	core.CSTR = 0x0000;
 }
 
-void runCore() {
-	int cycles = 0;
-	do {
-		fetch();
-		decode();
-		execute();
-		memory();
-		cycles++;
-	} while (cycles < 8);
+void* runCore(void* _) {
+	dLog(D_NONE, DSEV_INFO, "Executing core thread...");
+
+	int runningCycles = 0;
+	int idleCycles = 0;
+	while (true) {
+		pthread_mutex_lock(&idleLock);
+		if (!IDLE) {
+			fetch();
+			decode();
+			execute();
+			memory();
+			runningCycles++;
+
+			if (runningCycles == 8) {
+				IDLE = true;
+				pthread_cond_signal(&idleCond);
+			}
+		} else {
+			pthread_mutex_unlock(&idleLock);
+			idleCycles++;
+			continue;
+		}
+		pthread_mutex_unlock(&idleLock);
+	}
+
+	return NULL;
 }
 
 void viewCoreState() {

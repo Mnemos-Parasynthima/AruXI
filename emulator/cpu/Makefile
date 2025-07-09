@@ -3,7 +3,7 @@ HEADERS = ../../headers
 OUT = ../../out
 
 CC = gcc
-CFLAGS = -Wall
+CFLAGS = -Wall -lpthread
 INCLUDES = -I$(HEADERS)/emulator/cpu -I$(HEADERS)/emulator -I$(HEADERS)
 
 SRCS = cpu.c core.c mem.c hardware.c $(SHARED)/emSignal.c $(SHARED)/diagnostics.c $(SHARED)/signalHandler.c

@@ -8,6 +8,7 @@
 #include <sys/wait.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <pthread.h>
 
 #include "signalHandler.h"
 #include "emSignal.h"
@@ -22,6 +23,11 @@ core_t core;
 uint8_t* emMem;
 SigMem* sigMem;
 opcode_t imap[1<<8];
+
+pthread_mutex_t idleLock = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t idleCond = PTHREAD_COND_INITIALIZER;
+volatile bool IDLE = false;
+
 
 char* istrmap[] = {
 	"OP_NOP",
@@ -228,7 +234,13 @@ int main(int argc, char const* argv[]) {
 
 	dLog(D_NONE, DSEV_INFO, "Setting up..running kernel at 0x%x...", entry);
 
-	runCore();
+	pthread_t core0thread;
+	pthread_create(&core0thread, NULL, runCore, NULL);
+	
+	// Block while core is not idle
+	pthread_mutex_lock(&idleLock);
+	while (!IDLE) pthread_cond_wait(&idleCond, &idleLock);
+	pthread_mutex_unlock(&idleLock);
 
 	dLog(D_NONE, DSEV_INFO, "Now in idle state, ack exec sig");
 
@@ -236,8 +248,10 @@ int main(int argc, char const* argv[]) {
 	if (acked == -1) dFatal(D_ERR_SIGNAL, "No access for exec signal!");
 	if (acked == 0) dFatal(D_ERR_SIGNAL, "Could not ack exec signal!");
 
-	// Do normal run
-	// ....
+	// Main thread waits for shutdown
+	// Loading program is done via SIGUSR1
+	// On interrupt, it sets everything up, then resumes the core
+	// On exit, the core goes back to idle
 
 	dLog(D_NONE, DSEV_INFO, "Wating for shutdown...");
 	dDebug(DB_DETAIL, "Before get shutdown: Universal interrupts as 0x%x", universalSig->interrupts);
@@ -250,6 +264,8 @@ int main(int argc, char const* argv[]) {
 	dDebug(DB_DETAIL, "After ack shutdown: Universal interrupts as 0x%x", universalSig->interrupts);
 	munmap(_sigMem, SIG_MEM_SIZE);
 	munmap(_emMem, MEMORY_SPACE_SIZE);
+
+	// When threadjoin????
 
 	dLog(D_NONE, DSEV_INFO, "CPU exiting");
 

@@ -54,7 +54,7 @@ typedef struct Core {
 #define GET_AVE(flags) ((flags>>14) & 0b1)
 
 void initCore();
-void runCore();
+void* runCore(void*);
 
 
 #endif
