@@ -21,8 +21,8 @@ char* preprocess(char* line, ssize_t len) {
 	char* start = line;
 	while (isblank(*start)) start++;
 
-	// Comment has been reached, ignore the rest
-	if (*start == COMMENT) return NULL;
+	// Comment or end of line has been reached, ignore the rest
+	if (*start == COMMENT || *start == '\n') return NULL;
 
 	// Start from the right and go through any whitespace left-wise
 	char* end = (line + len) - 1;
