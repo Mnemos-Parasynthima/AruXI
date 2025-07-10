@@ -86,7 +86,7 @@ void extractImm() {
 
 void extractRegs() {
 	uint8_t _rd = u32bitextract(core.uarch.fetchCtx.instrbits, 0, 5);
-	uint8_t _rsI = u32bitextract(core.uarch.fetchCtx.instrbits, 5, 5);
+	uint8_t _rsIS = u32bitextract(core.uarch.fetchCtx.instrbits, 5, 5);
 	uint8_t _rsR = u32bitextract(core.uarch.fetchCtx.instrbits, 10, 5);
 	uint8_t _rr = u32bitextract(core.uarch.fetchCtx.instrbits, 5, 5);
 
@@ -94,18 +94,23 @@ void extractRegs() {
 
 	itype_t type = core.uarch.decodeCtx.iType;
 	opcode_t opcode = core.uarch.fetchCtx.opcode;
-	// if (type )
 
 	if (opcode == OP_UBR || opcode == OP_RET) {
 		rd = _rd; // Bu-Type
 		core.uarch.decodeCtx.iType = BU_TYPE;
 	} else if (type == I_TYPE) {
 		rd = _rd;
-		rs = _rsI;
+		rs = _rsIS;
 	} else if (type == R_TYPE || type == M_TYPE) {
 		rd = _rd;
 		rs = _rsR;
 		rr = _rr;
+	} else if (type == S_TYPE) {
+		if (opcode == OP_MVCSTR) {
+			rs = _rsIS;
+		} else if (opcode == OP_LDIR || opcode == OP_LDCSTR) {
+			rd = _rd;
+		}
 	}
 
 	core.uarch.decodeCtx.rd = rd;
@@ -197,15 +202,41 @@ static void decode() {
 			break;
 	}
 
+	// Subdivide for S-types
+	if (code == OP_SYS) {
+		core.uarch.decodeCtx.iType = S_TYPE;
+		// get subopcode
+		uint8_t subopcode = u32bitextract(core.uarch.fetchCtx.instrbits, 20, 4);
+		opcode_t subcode = OP_ERROR;
+		switch (subopcode)	{
+			case 0b0001: subcode = OP_SYSCALL; break;
+			case 0b0011: subcode = OP_HLT; break;
+			case 0b0101: subcode = OP_SI; break;
+			case 0b0111: subcode = OP_DI; break;
+			case 0b1001: opcode = OP_IRET; break;
+			case 0b1011: opcode = OP_LDIR; break;
+			case 0b1101: opcode = OP_MVCSTR; break;
+			case 0b1111: opcode = OP_LDCSTR; break;
+			default: break;
+		}
 
-	switch (code)	{
-		case OP_HLT: case OP_SI: case OP_DI: case OP_IRET: case OP_ERET:
+		if (subcode == OP_ERROR) {
+			if (GET_PRIV(core.CSTR) == 0b0) { // Kill for kernel code
+				dLog(D_NONE, DSEV_WARN, "Invalid instruction: 0x%x!", opcode);
+				fault();
+			} else { // EVT for user code
+				
+			}
+		}
+
+		if (subcode != OP_SYSCALL) {
+			// Syscall is the only S-type that is unprivileged (for now??), the rest are privileged
 			if (GET_PRIV(core.CSTR) == 0b1) {
 				// EVT
-			} else core.uarch.decodeCtx.iType = S_TYPE;
-			break;
-		default:
-			break;
+			}
+		}
+
+		core.uarch.fetchCtx.opcode = subcode;
 	}
 
 	extractImm();
@@ -327,10 +358,10 @@ void* runCore(void* _) {
 			memory();
 			runningCycles++;
 
-			if (runningCycles == 8) {
-				IDLE = true;
-				pthread_cond_signal(&idleCond);
-			}
+			// if (runningCycles == 8) {
+			// 	IDLE = true;
+			// 	pthread_cond_signal(&idleCond);
+			// }
 		} else {
 			pthread_mutex_unlock(&idleLock);
 			idleCycles++;

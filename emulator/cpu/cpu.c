@@ -75,12 +75,15 @@ char* istrmap[] = {
 	"OP_LDF",
 	"OP_STRF",
 	"OP_MVF",
+	"OP_SYS",
+	"OP_SYSCALL",
 	"OP_HLT",
 	"OP_SI",
 	"OP_DI",
 	"OP_IRET",
-	"OP_ERET",
-	"OP_SYSCALL"
+	"OP_LDIR",
+	"OP_MVCSTR",
+	"OP_LDCSTR"
 };
 
 void handleSIGUSR1(int signum) {
@@ -168,11 +171,7 @@ void initIMap() {
 	imap[0b11000110] = OP_CALL;
 	imap[0b11001000] = OP_RET;
 	// imap[0b10000000] = OP_NOP; // aliased as addi
-	// imap[0b00000000] = OP_SYSCALL;
-	imap[0b10111100] = OP_HLT;
-	// imap[0b00000000] = OP_SI;
-	// imap[0b00000000] = OP_DI;
-	// imap[0b00000000] = OP_IRET;
+	imap[0b10111110] = OP_SYS;
 	// imap[0b00000000] = OP_ADDF;
 	// imap[0b00000000] = OP_SUBF;
 	// imap[0b00000000] = OP_MULF;

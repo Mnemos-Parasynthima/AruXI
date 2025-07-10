@@ -55,13 +55,15 @@ typedef enum opcode {
 	OP_STRF,
 	OP_MVF,
 
+	OP_SYS, // Applies to all S-types
+	OP_SYSCALL,
 	OP_HLT,
 	OP_SI,
 	OP_DI,
 	OP_IRET,
-	OP_ERET,
-
-	OP_SYSCALL,
+	OP_LDIR,
+	OP_MVCSTR,
+	OP_LDCSTR,
 
 	OP_ERROR = -1
 } opcode_t;
