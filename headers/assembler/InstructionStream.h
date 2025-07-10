@@ -6,7 +6,6 @@
 
 
 typedef struct InstructionObject {
-	// uint8_t status; 
 	uint32_t addr; // Address relative to section
 	uint32_t encoding;
 	char* source; // The original (preprocessed) string

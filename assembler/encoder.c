@@ -110,7 +110,7 @@ static void encodeI(instr_obj_t* instr, SymbolTable* symbTable) {
 	else if (strcasecmp(instrStr, VALID_INSTRUCTIONS[LSL]) == 0) opcode = 0b01001000;
 	else if (strcasecmp(instrStr, VALID_INSTRUCTIONS[LSR]) == 0) opcode = 0b01001010;
 	else if (strcasecmp(instrStr, VALID_INSTRUCTIONS[ASR]) == 0) opcode = 0b01001100;
-	else handleError(ERR_INVALID_INSTRUCTION, FATAL, "Could not detect instruction %s!\n", instrStr);
+	else handleError(ERR_INVALID_INSTRUCTION, FATAL, "Could not detect instruction %s for I-type!\n", instrStr);
 
 	uint8_t rd = getRegisterEncoding(xd);
 	uint8_t rs = getRegisterEncoding(xs);
@@ -157,7 +157,7 @@ static void encodeR(instr_obj_t* instr) {
 	else if (strcasecmp(instrStr, VALID_INSTRUCTIONS[SMUL]) == 0) opcode = 0b10100010;
 	else if (strcasecmp(instrStr, VALID_INSTRUCTIONS[DIV]) == 0) opcode = 0b10101000;
 	else if (strcasecmp(instrStr, VALID_INSTRUCTIONS[SDIV]) == 0) opcode = 0b10101010;
-	else handleError(ERR_INVALID_INSTRUCTION, FATAL, "Could not detect instruction %s!\n", instrStr);
+	else handleError(ERR_INVALID_INSTRUCTION, FATAL, "Could not detect instruction %s for R-type!\n", instrStr);
 
 	uint8_t rd = getRegisterEncoding(xd);
 	uint8_t rs = getRegisterEncoding(xs);
@@ -206,7 +206,7 @@ static void encodeM(instr_obj_t* instr, SymbolTable* symbTable) {
 	else if (strcasecmp(instrStr, VALID_INSTRUCTIONS[STR]) == 0) opcode = 0b00011100;
 	else if (strcasecmp(instrStr, VALID_INSTRUCTIONS[STRB]) == 0) opcode = 0b00111100;
 	else if (strcasecmp(instrStr, VALID_INSTRUCTIONS[STRH]) == 0) opcode = 0b01011100;
-	else handleError(ERR_INVALID_INSTRUCTION, FATAL, "Could not detect instruction %s!\n", instrStr);
+	else handleError(ERR_INVALID_INSTRUCTION, FATAL, "Could not detect instruction %s for M-type!\n", instrStr);
 
 	encoding = (opcode << 24) | (simm << 15) | (rs << 10) | (rr < 5) | (rd << 0);
 	instr->encoding = encoding;
@@ -276,12 +276,68 @@ static void encodeBu(instr_obj_t* instr) {
 
 	if (strcasecmp(instrStr, VALID_INSTRUCTIONS[UBR]) == 0) opcode = 0b11000010;
 	else if (strcasecmp(instrStr, VALID_INSTRUCTIONS[RET]) == 0) opcode = 0b11001000;
-	else handleError(ERR_INVALID_INSTRUCTION, FATAL, "Could not detect instruction %s!\n", instrStr);
+	else handleError(ERR_INVALID_INSTRUCTION, FATAL, "Could not detect instruction %s for Bu-type!\n", instrStr);
 
 	uint8_t rd = getRegisterEncoding(xd);
 
 	encoding = (opcode << 24) | (rd << 0);
 	instr->encoding = encoding;
+}
+
+static void encodeSpecial(InstructionStream* instrStream, int i, SymbolTable* symbolTable) {
+	debug("Handling special on ld\n");
+	
+	// For now, special means that the instruction is `ld reg, imm` that was not able to decomposed due to unresolved labels
+	// Basically just do what is done in lexer-parser::handleM
+	instr_obj_t* ldInstr = instrStream->instructions[i];
+	char** ops = ldInstr->operands;
+
+	char** temp = ops;
+	SHOW_OPERANDS(temp)
+	debug("\n");
+
+	// Make sure it is the ld instruction
+	if (strcmp(ldInstr->instr, "ld") != 0) handleError(ERR_INNER, FATAL, "Expected `ld` instruction for special!\n");
+
+	bool canEval = true;
+	int32_t imm = eval(ldInstr->operands[2], symbolTable, &canEval);
+	if (!canEval) handleError(ERR_INVALID_EXPRESSION, FATAL, "Could not evaluate label %s!\n", ldInstr->operands[2]);
+
+	char* mvstr = malloc(sizeof(char) * 3);
+	char* immhstr = malloc(sizeof(char) * 16);
+	char* immmstr = malloc(sizeof(char) * 16);
+	char* immlstr = malloc(sizeof(char) * 16);
+	uint32_t immh, immm, imml;
+
+	immh = (imm >> 18) & 0x3fff;
+	immm = (imm >> 4) & 0x3fff;
+	imml = (imm >> 0) & 0xf;
+
+	strcpy(mvstr, "mv");
+	sprintf(immhstr, "#%u", immh);
+	sprintf(immmstr, "#%u", immm);
+	sprintf(immlstr, "#%u", imml);
+
+	// On new instr_objs, the operands each get malloc'd, since the pointers are being replaced, free the old
+	free(ldInstr->operands[2]);
+	free(ldInstr->instr);
+	ldInstr->instr = mvstr;
+	// Place correct immediates
+	ldInstr->operands[2] = immhstr;
+
+	instr_obj_t* mvInstr = instrStream->instructions[i+2];
+	if (strcmp(mvInstr->operands[2], "#o0") != 0) handleError(ERR_INNER, FATAL, "Expected placeholder \"#o0\" for mv, found \"%s\"!\n", mvInstr->operands[2]);
+	free(mvInstr->operands[2]);
+	mvInstr->operands[2] = immmstr;
+
+	instr_obj_t* addInstr = instrStream->instructions[i+5];
+	if (strcmp(addInstr->operands[2], "#o0") != 0) handleError(ERR_INNER, FATAL, "Expected placeholder \"#o0\" for add, found \"%s\"!\n", addInstr->operands[2]);
+	free(addInstr->operands[2]);
+	addInstr->operands[2] = immlstr;
+
+	// Work on ld->mv
+	encodeI(ldInstr, symbolTable);
+	// Leave the rest to the normal processing
 }
 
 void encode(InstructionStream* instrStream, SymbolTable* symbTable) {
@@ -295,7 +351,8 @@ void encode(InstructionStream* instrStream, SymbolTable* symbTable) {
 			case 0x1: encodeR(instr); break;
 			case 0x2: encodeM(instr, symbTable); break;
 			case 0x3: encodeBiBc(instr, symbTable); break;
-			case 0x4: encodeBu(instr); break;				
+			case 0x4: encodeBu(instr); break;
+			case 0x11: encodeSpecial(instrStream, i, symbTable); break;
 			default: break;
 		}
 	}

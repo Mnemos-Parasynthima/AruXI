@@ -641,6 +641,8 @@ HANDLE_INSTR(handleIR) {
 }
 
 HANDLE_INSTR(handleM) {
+	// TODO: Have IR-relative for ld reg, imm
+
 	// Memory instructions are slightly more tricky
 	// All memory ops have the following addressing modes:
 	// mem_op reg, [x]
@@ -649,7 +651,7 @@ HANDLE_INSTR(handleM) {
 
 	// But ld has an exception:
 	// ld reg, label
-	// Which decomposes into three instructions: mv -> lsl -> add
+	// FIXME: Which decomposes into three instructions: mv -> lsl -> add
 
 	// After getting the destination register,
 	// the way to store the possible configurations is in an array of three
@@ -676,8 +678,6 @@ HANDLE_INSTR(handleM) {
 		if (*addressing != '[') {
 			// In the case that it does start with a label/immediate, do special handling
 			// It can either be just a label or an expression involving a label
-			// Note that the expression could have been cut short with strtok if it was imm + 2 * ....
-			// Recombine
 
 			char* expr = strtok_r(NULL, ",", &addressing);
 			// expr should be everything after the first ',', addressing should point to the end
@@ -689,42 +689,77 @@ HANDLE_INSTR(handleM) {
 			// Note that if eval returns false, it either means a symbol is not found yet or that the expression
 			// 	is invalid, that won't be known until all symbol all gathered
 
-			char immhstr[21];
-			char immlstr[15];
-			uint32_t immh, imml;
+			char* operands[] = { xd, VALID_REGISTERS[XZ], NULL, NULL };
+			char immmstr[16];
+			char immlstr[16];
+			uint32_t immm, imml;
 			// If it was able to be evaled, split imm
 			if (evald) {
-				// if (imm > ((1<<(9-1))-1) || imm < -(1<<(9-1))) handleError(ERR_INVALID_SIZE, FATAL, "Invalid size for %x. Expected SIMM9.\n", imm);
+				char immhstr[16];
+				uint32_t immh;
 
-				immh = (imm >> 13) & 0x7ffff;
-				imml = (imm >> 0) & 0x1fff;
+				immh = (imm >> 18) & 0x3fff;
+				immm = (imm >> 4) & 0x3fff;
+				imml = (imm >> 0) & 0xf;
 
 				sprintf(immhstr, "#%u", immh);
+				sprintf(immmstr, "#%u", immm);
 				sprintf(immlstr, "#%u", imml);
+
+				operands[2] = immhstr;
+				instr_obj_t* mvHInstr = initInstrObj(sectTable->entries[3].lp, NULL, "mv", (char**) operands);
+				addInstrObj(instrStream, mvHInstr);
+				mvHInstr->encoding = 0x0;
 			} else {
 				// If not (meaning it used an undefined label/symbol), leave it for future evaluation
 				// But keep the need to split imm
-				// TODO
-				// Edit: But how???????
+				// This will be done in second pass (or maybe even before??) after the symbol table is complete
+				// However, since many things depend on LP, pre-allocate space
+				// Still keep the first/original instruction as the first
+				// Save it as an I-type
+				operands[2] = expr;
+				instr_obj_t* ldInstr = initInstrObj(sectTable->entries[3].lp, NULL, "ld", (char**) operands);
+				addInstrObj(instrStream, ldInstr);
+				ldInstr->encoding = 0x11; // special encoding type
+
+				// Add skeleton decompositions, omitting the immediates
+				// Or even better, placing fake immediates
+				sprintf(immmstr, "#o0");
+				sprintf(immlstr, "#o0");
 			}
 
-			char* operands[] = { xd, VALID_REGISTERS[XZ], immhstr, NULL };
-			instr_obj_t* mvInstr = initInstrObj(sectTable->entries[3].lp, NULL, "mv", (char**) operands);
-			addInstrObj(instrStream, mvInstr);
-			mvInstr->encoding = 0x0;
-
 			operands[1] = xd;
-			operands[2] = "#13";
-			instr_obj_t* lslInstr = initInstrObj(sectTable->entries[3].lp+4, NULL, "lsl", (char**) operands);
-			addInstrObj(instrStream, lslInstr);
-			lslInstr->encoding = 0x0;
+			operands[2] = "#18";
+			instr_obj_t* lsl18Instr = initInstrObj(sectTable->entries[3].lp+4, NULL, "lsl", (char**) operands);
+			addInstrObj(instrStream, lsl18Instr);
+			lsl18Instr->encoding = 0x0;
+
+			operands[0] = VALID_REGISTERS[C0];
+			operands[1] = VALID_REGISTERS[XZ];
+			operands[2] = immmstr;
+			instr_obj_t* mvMInstr = initInstrObj(sectTable->entries[3].lp+8, NULL, "mv", (char**) operands);
+			addInstrObj(instrStream, mvMInstr);
+			mvMInstr->encoding = 0x0;
+
+			operands[1] = VALID_REGISTERS[C0];
+			operands[2] = "#4";
+			instr_obj_t* lsl4Instr = initInstrObj(sectTable->entries[3].lp+12, NULL, "lsl", (char**) operands);
+			addInstrObj(instrStream, lsl4Instr);
+			lsl4Instr->encoding = 0x0;
+
+			operands[0] = xd;
+			operands[1] = xd;
+			operands[2] = VALID_REGISTERS[C0];
+			instr_obj_t* orInstr = initInstrObj(sectTable->entries[3].lp+16, NULL, "or", (char**) operands);
+			addInstrObj(instrStream, orInstr);
+			orInstr->encoding = 0x1;
 
 			operands[2] = immlstr;
-			instr_obj_t* addInstr = initInstrObj(sectTable->entries[3].lp+8, NULL, "add", (char**) operands);
+			instr_obj_t* addInstr = initInstrObj(sectTable->entries[3].lp+20, NULL, "add", (char**) operands);
 			addInstrObj(instrStream, addInstr);
 			addInstr->encoding = 0x0;
 
-			sectTable->entries[3].lp += 8; // The normal LP is incremented by 4 in main, handle the extra two instructions
+			sectTable->entries[3].lp += 20; // The normal LP is incremented by 4 in main, handle the extra five instructions
 
 			return;
 		}
