@@ -913,7 +913,27 @@ HANDLE_INSTR(handleBc) {
 	handleBi(instrStream, symbTable, sectTable, instr, args);
 }
 
-HANDLE_INSTR(handleS) { handleError(WARN, WARNING, "S-type instructions not implemented!\n"); }
+HANDLE_INSTR(handleS) { 
+	// As of now, S-types either have no operands or only one (ldir, mvcstr, ldcstr)
+	// Can currently be differentiated by either 'l' or 'm'
+	
+	char* operands[2] = { NULL, NULL };
+	if (*instr == 'l' || *instr == 'm') {
+		// Check only one operand
+		char* xd_xs = strtok_r(NULL, " \t", &args);
+		if (!xd_xs) handleError(ERR_INVALID_SYNTAX, FATAL, "Expected registers, got nothing!\n");
+		validateRegister(xd_xs);
+
+		operands[0] = xd_xs;
+	}
+	// Check no operands
+	char* rest = strtok_r(NULL, " \t,", &args);
+	if (rest) handleError(ERR_INVALID_SYNTAX, FATAL, "Unexpected operands: `%s`\n", rest);
+
+	instr_obj_t* instrObj = initInstrObj(sectTable->entries[3].lp, NULL, instr, (char**) operands);
+	addInstrObj(instrStream, instrObj);
+	instrObj->encoding = 0x5;
+}
 
 HANDLE_INSTR(handleF) { handleError(WARN, WARNING, "F-type instructions not implemented!\n"); }
 

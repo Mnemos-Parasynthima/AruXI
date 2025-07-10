@@ -13,7 +13,7 @@ enum ImmediateSize {
 	IMM14, SIMM24, SIMM19, SIMM9
 };
 
-#define SHOW_OPERANDS(ops) while (*ops) { if (*ops != 0xFEEDFAED) debug("%s, ", *ops); ops++; }
+#define SHOW_OPERANDS(ops) while (*ops) { if (*ops != PTR(0xFEEDFAED)) debug("%s, ", *ops); ops++; }
 
 
 static uint8_t getConditionEncoding(char* cond) {
@@ -30,7 +30,7 @@ static uint8_t getConditionEncoding(char* cond) {
 }
 
 static uint8_t getRegisterEncoding(char* reg) {
-	if (reg == 0xFEEDFAED) return 30;
+	if (reg == PTR(0xFEEDFAED)) return 30;
 
 	// Special name
 	if (strcasecmp(reg, VALID_REGISTERS[XR]) == 0) return 0;
@@ -49,7 +49,7 @@ static uint8_t getRegisterEncoding(char* reg) {
 }
 
 static uint32_t getImmediateEncoding(char* imm, SymbolTable* symbTable, enum ImmediateSize size) {
-	if (imm == 0xFEEDFAED) return 0;
+	if (imm == PTR(0xFEEDFAED)) return 0;
 
 	// The '#' is already skipped for IR instructions but not for pure I
 	// So far, it is only nop that is pure I
@@ -179,7 +179,7 @@ static void encodeM(instr_obj_t* instr, SymbolTable* symbTable) {
 	char** ops = instr->operands;
 
 	char** temp = ops;
-	while (*temp && *temp != 0xFEEDFAED) { debug("%s, ", *temp); temp++; }
+	while (*temp && *temp != PTR(0xFEEDFAED)) { debug("%s, ", *temp); temp++; }
 	debug("\n");
 
 	char* xd = ops[0];
@@ -192,9 +192,9 @@ static void encodeM(instr_obj_t* instr, SymbolTable* symbTable) {
 	uint8_t rr = 0x0;
 	int16_t simm = 0x0;
 
-	if (index != 0xFEEDFAED) rr = getRegisterEncoding(index);
+	if (index != PTR(0xFEEDFAED)) rr = getRegisterEncoding(index);
 
-	if (offset != 0xFEEDFAED) simm = getImmediateEncoding(offset, symbTable, SIMM9);
+	if (offset != PTR(0xFEEDFAED)) simm = getImmediateEncoding(offset, symbTable, SIMM9);
 
 	if (strcasecmp(instrStr, VALID_INSTRUCTIONS[LD]) == 0) opcode = 0b00010100;
 	else if (strcasecmp(instrStr, VALID_INSTRUCTIONS[LDB]) == 0) opcode = 0b00110100;
@@ -284,6 +284,47 @@ static void encodeBu(instr_obj_t* instr) {
 	instr->encoding = encoding;
 }
 
+static void encodeS(instr_obj_t* instr) {
+	uint32_t encoding = 0x00000000;
+	uint32_t subOpcode = 0b0000;
+#ifdef _WIN64
+	uint32_t opcode = 0b10111110;
+#else
+	uint8_t opcode = 0b10111110;
+#endif
+
+	char* instrStr = instr->instr;
+	char** ops = instr->operands;
+
+	char** temp = ops;
+	SHOW_OPERANDS(temp)
+	debug("\n");
+
+	char* xs_xd = ops[0];
+
+	uint8_t rd = 0b00000;
+	uint8_t rs = 0b00000;
+
+	if (strcasecmp(instrStr, VALID_INSTRUCTIONS[SYSCALL]) == 0) subOpcode = 0b0001;
+	else if (strcasecmp(instrStr, VALID_INSTRUCTIONS[HLT]) == 0) subOpcode = 0b0011;
+	else if (strcasecmp(instrStr, VALID_INSTRUCTIONS[SI]) == 0) subOpcode = 0b0101;
+	else if (strcasecmp(instrStr, VALID_INSTRUCTIONS[DI]) == 0) subOpcode = 0b0111;
+	else if (strcasecmp(instrStr, VALID_INSTRUCTIONS[IRET]) == 0) subOpcode = 0b1001;
+	else if (strcasecmp(instrStr, VALID_INSTRUCTIONS[LDIR]) == 0) {
+		subOpcode = 0b1011;
+		rd = getRegisterEncoding(xs_xd);
+	} else if (strcasecmp(instrStr, VALID_INSTRUCTIONS[MVCSTR]) == 0) {
+		subOpcode = 0b1101;
+		rs = getRegisterEncoding(xs_xd);
+	} else if (strcasecmp(instrStr, VALID_INSTRUCTIONS[LDCSTR]) == 0) {
+		subOpcode = 0b1111;
+		rd = getRegisterEncoding(xs_xd);
+	} else handleError(ERR_INVALID_INSTRUCTION, FATAL, "Could not detect instruction %s for S-type!\n", instrStr);
+
+	encoding = (opcode << 24) | (subOpcode << 20) | (rs << 5) | (rd << 0);
+	instr->encoding = encoding;
+}
+
 static void encodeSpecial(InstructionStream* instrStream, int i, SymbolTable* symbolTable) {
 	debug("Handling special on ld\n");
 	
@@ -352,6 +393,7 @@ void encode(InstructionStream* instrStream, SymbolTable* symbTable) {
 			case 0x2: encodeM(instr, symbTable); break;
 			case 0x3: encodeBiBc(instr, symbTable); break;
 			case 0x4: encodeBu(instr); break;
+			case 0x5: encodeS(instr); break;
 			case 0x11: encodeSpecial(instrStream, i, symbTable); break;
 			default: break;
 		}

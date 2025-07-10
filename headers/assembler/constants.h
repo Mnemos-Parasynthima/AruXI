@@ -68,7 +68,7 @@ enum Instructions {
 	UB, CALL,
 	UBR, RET,
 	B,
-	SYSCALL, HLT
+	SYSCALL, HLT, SI, DI, IRET, LDIR, MVCSTR, LDCSTR
 };
 
 static char* VALID_REGISTERS[] = {
