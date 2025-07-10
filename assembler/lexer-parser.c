@@ -641,8 +641,6 @@ HANDLE_INSTR(handleIR) {
 }
 
 HANDLE_INSTR(handleM) {
-	// TODO: Have IR-relative for ld reg, imm
-
 	// Memory instructions are slightly more tricky
 	// All memory ops have the following addressing modes:
 	// mem_op reg, [x]
@@ -651,7 +649,7 @@ HANDLE_INSTR(handleM) {
 
 	// But ld has an exception:
 	// ld reg, label
-	// FIXME: Which decomposes into three instructions: mv -> lsl -> add
+	// Which decomposes into six instructions: mv -> lsl -> mv -> lsl -> or -> add
 
 	// After getting the destination register,
 	// the way to store the possible configurations is in an array of three
@@ -683,18 +681,47 @@ HANDLE_INSTR(handleM) {
 			// expr should be everything after the first ',', addressing should point to the end
 			char* rest = strtok_r(NULL, "", &addressing);
 			if (rest) handleError(ERR_INVALID_SYNTAX, FATAL, "Unexpected operands: `%s`\n", rest);
-			
+
+			bool moveLiteral = false;
+			if (*expr == '=') {
+				// Wanting to move a big number, just decompose
+				expr++; // skip '='
+				moveLiteral = true;
+			}
+
 			bool evald = true;
 			uint32_t imm = eval(expr, symbTable, &evald);
 			// Note that if eval returns false, it either means a symbol is not found yet or that the expression
 			// 	is invalid, that won't be known until all symbol all gathered
 
-			char* operands[] = { xd, VALID_REGISTERS[XZ], NULL, NULL };
+			char* operands[5] = { xd, VALID_REGISTERS[XZ], NULL, NULL, NULL };
 			char immmstr[16];
 			char immlstr[16];
 			uint32_t immm, imml;
-			// If it was able to be evaled, split imm
+			// If it was able to be evaled, check if it can be done IR-relative, if not, split
 			if (evald) {
+				if (!moveLiteral) {
+					debug("ld is to attempt loading from immediate address, attempt to do IR-relative\n");
+					uint32_t currLP = sectTable->entries[3].lp;
+					int32_t irOffset = imm - currLP;
+					debug("Offset is %d\n", irOffset);
+					if (-256 <= irOffset && irOffset <= 255) {
+						debug("Doing IR-relative ld!\n");
+						// Range is in perfect range for IR-relative
+						char irOffsetStr[16];
+						sprintf(irOffsetStr, "#%d", irOffset);
+
+						char* ldOperands[5] = { xd, "ir", irOffsetStr, index, NULL };
+
+						instr_obj_t* instrObj = initInstrObj(sectTable->entries[3].lp, NULL, instr, (char**) ldOperands);
+						addInstrObj(instrStream, instrObj);
+						instrObj->encoding = 0x2;
+
+						return;
+					}
+				}
+				debug("Unable to do IR-relative (too big or moving literal), doing decomposition\n");
+
 				char immhstr[16];
 				uint32_t immh;
 
@@ -760,6 +787,19 @@ HANDLE_INSTR(handleM) {
 			addInstr->encoding = 0x0;
 
 			sectTable->entries[3].lp += 20; // The normal LP is incremented by 4 in main, handle the extra five instructions
+
+			// In the case that it is not a literal (need to load a value from the immediate address), add a normal load-reg
+			// ld reg, [reg]
+			if (!moveLiteral) {
+				debug("ld is for loading from immediate address, adding normal ld\n");
+				operands[2] = PTR(0xFEEDFAED); // Since this will be `ld xd, [xd]`, 0 is already xd, 1 is already xd
+				operands[3] = VALID_REGISTERS[XZ];
+				instr_obj_t* ldInstr = initInstrObj(sectTable->entries[3].lp+24, NULL, "ld", (char**) operands);
+				addInstrObj(instrStream, ldInstr);
+				ldInstr->encoding = 0x2;
+
+				sectTable->entries[3].lp += 4;
+			}
 
 			return;
 		}
