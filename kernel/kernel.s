@@ -19,7 +19,7 @@ _init:
 _usrSetup:
 	% sp contains at the limit where argv stops (last argument) placed by the loader/emulator
 
-	ld x0, =STACK_LIMIT
+	ld x0, =STACK_LIMIT-0x4
 	ld x1, [x0] % get the user entry point where emulator loader has placed it
 
 	ld x2, [x0, #-0x4] % get argc
@@ -51,8 +51,8 @@ _setPS:
 	call _kmalloc
 	% xr contains pointer to memory block for PS
 	% save it
-	ld c0, KERN_PS
-	str xr, [c0]
+	ld c1, =KERN_PS
+	str xr, [c1]
 	
 	mv c0, #0x0 % ignore PIDs for now
 	str xz, [xr]
