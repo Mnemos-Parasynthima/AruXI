@@ -28,11 +28,12 @@ typedef struct AOEFFHdr {
 
 #define AHT_EXEC 0
 #define AHT_KERN 1
+#define AHT_SLIB 3
 
 
 typedef struct AOEFFSctHdr {
 	char shSectName[8]; // name of the section
-	uint8_t shSectOff; // offset of the section
+	uint32_t shSectOff; // offset of the section
 	uint32_t shSectSize; // size of the section
 } AOEFFSectHeader;
 
