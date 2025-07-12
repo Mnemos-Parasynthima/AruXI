@@ -179,7 +179,11 @@ static void encodeM(instr_obj_t* instr, SymbolTable* symbTable) {
 	char** ops = instr->operands;
 
 	char** temp = ops;
-	while (*temp && *temp != PTR(0xFEEDFAED)) { debug("%s, ", *temp); temp++; }
+	while (*temp) { 
+		if (*temp != PTR(0xFEEDFAED)) debug("%s, ", *temp);
+		else debug("-, ", *temp);
+		temp++;
+	}
 	debug("\n");
 
 	char* xd = ops[0];
@@ -189,7 +193,7 @@ static void encodeM(instr_obj_t* instr, SymbolTable* symbTable) {
 
 	uint8_t rd = getRegisterEncoding(xd);
 	uint8_t rs = getRegisterEncoding(base);
-	uint8_t rr = 0x0;
+	uint8_t rr = 30;
 	int16_t simm = 0x0;
 
 	if (index != PTR(0xFEEDFAED)) rr = getRegisterEncoding(index);
@@ -208,7 +212,7 @@ static void encodeM(instr_obj_t* instr, SymbolTable* symbTable) {
 	else if (strcasecmp(instrStr, VALID_INSTRUCTIONS[STRH]) == 0) opcode = 0b01011100;
 	else handleError(ERR_INVALID_INSTRUCTION, FATAL, "Could not detect instruction %s for M-type!\n", instrStr);
 
-	encoding = (opcode << 24) | (simm << 15) | (rs << 10) | (rr < 5) | (rd << 0);
+	encoding = (opcode << 24) | ((simm&0x1ff) << 15) | (rs << 10) | (rr << 5) | (rd << 0);
 	instr->encoding = encoding;
 }
 
