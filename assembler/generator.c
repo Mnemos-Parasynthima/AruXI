@@ -184,6 +184,9 @@ static void generateSectionHeaders(AOEFbin* bin, SectionTable* sectTable) {
 		section_entry_t entry = sectTable->entries[i];
 		if (!entry.present) continue;
 
+		sectHeaders[sectIdx].shSectSize = 0x0000;
+		sectHeaders[sectIdx].shSectOff = 0x0000;
+
 		char* sectName;
 		if (i == 0) sectName = ".data";
 		else if (i == 1) sectName = ".const";
@@ -201,8 +204,8 @@ static void generateSectionHeaders(AOEFbin* bin, SectionTable* sectTable) {
 	}
 
 	strncpy(sectHeaders[sectIdx].shSectName, "._none", 8);
-	sectHeaders[sectIdx].shSectOff = 0;
-	sectHeaders[sectIdx].shSectSize = 0;
+	sectHeaders[sectIdx].shSectOff = 0x0000;
+	sectHeaders[sectIdx].shSectSize = 0x0000;
 
 	bin->sectHdrTable = sectHeaders;
 }
@@ -239,8 +242,8 @@ static void generateSymbolTable(AOEFbin* bin, SymbolTable* symbTable) {
 	// Add ending blank entry
 	int lastIdx = symbTable->size - 1;
 	aoeffSymTable[lastIdx].seSymbInfo = SE_INFO(0, 0);
-	aoeffSymTable[lastIdx].seSymbSect = 0x0;
-	aoeffSymTable[lastIdx].seSymbVal = 0x0;
+	aoeffSymTable[lastIdx].seSymbSect = 0x0000;
+	aoeffSymTable[lastIdx].seSymbVal = 0x0000;
 
 	bin->symbEntTable = aoeffSymTable;
 	bin->stringTable.stStrs = stStrs;
@@ -254,6 +257,7 @@ AOEFbin* generateBinary(InstructionStream* instrStream, SymbolTable* symbTable, 
 	}
 
 	sectEntries++; // ending blank entry
+	debug("%d sect entries\n", sectEntries);
 	uint32_t symbTableSize = symbTable->size;
 	// Since the symbol table will have an empty ending symbol, the size would be +1
 	// However, symbTable.size includes the LP, so have that +1 be the blank
@@ -312,6 +316,9 @@ void writeBinary(AOEFbin* bin, char* outbin) {
 	fwrite(&bin->header.hStrTabSize, sizeof(uint32_t), 1, outfile);
 
 	// Write tables
+	debug("secthdr[0]: %s %x %x\n", bin->sectHdrTable[0].shSectName, bin->sectHdrTable[0].shSectOff, bin->sectHdrTable[0].shSectSize);
+	debug("secthdr[1]: %s %x %x\n", bin->sectHdrTable[1].shSectName, bin->sectHdrTable[1].shSectOff, bin->sectHdrTable[1].shSectSize);
+	debug("secthdr[2]: %s %x %x\n", bin->sectHdrTable[2].shSectName, bin->sectHdrTable[2].shSectOff, bin->sectHdrTable[2].shSectSize);
 	fwrite(bin->sectHdrTable, sizeof(AOEFFSectHeader), bin->header.hSectSize, outfile);
 	fwrite(bin->symbEntTable, sizeof(AOEFFSymbEntry), bin->header.hSymbSize, outfile);
 	fwrite(bin->stringTable.stStrs, sizeof(char), bin->header.hStrTabSize, outfile);
