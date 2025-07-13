@@ -2,6 +2,7 @@
 #include <string.h>
 
 #include "emSignal.h"
+#include "sigHeap.h"
 
 
 void setupSignals(SigMem* signalMemory) {
@@ -110,7 +111,7 @@ int setLoadSignal(signal_t* signal, loadprog_md* metadata) {
 
 	// Free since pointers will be replaced
 	// `program` is part of `argv`
-	if (signal->metadata.loadprog.argv) free(signal->metadata.loadprog.argv);
+	if (signal->metadata.loadprog.argv) sfree(signal->metadata.loadprog.argv);
 
 	signal->metadata.loadprog.program = metadata->program;
 	signal->metadata.loadprog.argc = metadata->argc;

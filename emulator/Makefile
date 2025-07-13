@@ -6,7 +6,7 @@ CC = gcc
 CFLAGS = -Wall
 INCLUDES = -I$(HEADERS)/emulator -I$(HEADERS)
 
-SRCS = emulator.c loader.c $(SHARED)/diagnostics.c $(SHARED)/emSignal.c $(SHARED)/signalHandler.c
+SRCS = emulator.c loader.c $(SHARED)/diagnostics.c $(SHARED)/emSignal.c $(SHARED)/signalHandler.c $(SHARED)/sigHeap.c
 TARGET = $(OUT)/ruemu
 
 # ifeq ($(MAKECMDGOALS),windows)

@@ -91,6 +91,7 @@ void handleSIGSEGV(int signum) {
 	fflush(stdout);
 	flushDebug();
 	write(STDOUT_FILENO, "CPU got SIGSEGV'd\n", 18);
+	munmap(sigMem->metadata.heap[CPU_HEAP], PAGESIZE);
 	munmap(sigMem, SIG_MEM_SIZE);
 	munmap(emMem, MEMORY_SPACE_SIZE);
 	exit(-1);
@@ -214,6 +215,22 @@ int main(int argc, char const* argv[]) {
 	dLog(D_NONE, DSEV_INFO, "Signal Memory opened at %p", _sigMem);
 
 	close(fd);
+	
+	sigMem = (SigMem*) _sigMem;
+
+
+	fd = shm_open(SHMEM_HEAP, O_RDWR, 0666);
+	if (fd == -1) dFatal(D_ERR_SHAREDMEM, "Could not open shared memory for signal heap!");
+
+	void* _sigHeap = mmap(NULL, PAGESIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+	if (_sigHeap == MAP_FAILED) dFatal(D_ERR_MEM, "Could not mmap signal heap!");
+
+	dDebug(DB_DETAIL, "Signal Heap opened at %p", _sigMem);
+
+	sigMem->metadata.heap[CPU_HEAP] = _sigHeap;
+
+	sinit(_sigHeap);
+
 
 	fd = shm_open(SHMEM_MEM, O_RDWR, 0666);
 	if (fd == -1) dFatal(D_ERR_SHAREDMEM, "Could not open shared memory for emulation!");
@@ -223,8 +240,8 @@ int main(int argc, char const* argv[]) {
 
 	close(fd);
 
-	sigMem = (SigMem*) _sigMem;
 	emMem = (uint8_t*) _emMem;
+
 
 	redefineSignal(SIGUSR1, &handleSIGUSR1);
 	redefineSignal(SIGSEGV, &handleSIGSEGV);
@@ -282,6 +299,8 @@ int main(int argc, char const* argv[]) {
 	acked = ackShutdownSignal(universalSig);
 	if (acked != 1) dFatal(D_ERR_SIGNAL, "Could not ack shutdown for CPU!");
 	dDebug(DB_DETAIL, "After ack shutdown: Universal interrupts as 0x%x", universalSig->interrupts);
+
+	munmap(sigMem->metadata.heap[CPU_HEAP], PAGESIZE);
 	munmap(_sigMem, SIG_MEM_SIZE);
 	munmap(_emMem, MEMORY_SPACE_SIZE);
 

@@ -39,6 +39,10 @@
 
 #define GET_SIGNAL(sigs, sigType) (&sigs[sigType])
 
+#define EMU_HEAP 0
+#define SHELL_HEAP 1
+#define CPU_HEAP 2
+
 typedef struct LoadprogMetadata {
 	char* program;
 	int argc;
@@ -72,6 +76,7 @@ typedef struct SignalMetadata {
 	pid_t shellPID;
 	pid_t cpuPID;
 	uint8_t signalType; // The type of signal to check (*_SIG)
+	void* heap[3]; // 0 for emulator heap, 1 for shell heap, 2 for cpu heap
 } signal_md;
 
 typedef struct SignalMemory {

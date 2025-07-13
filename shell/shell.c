@@ -19,6 +19,7 @@
 #include "signalHandler.h"
 #include "parser.h"
 #include "environment.h"
+#include "sigHeap.h"
 
 
 const char* PROMPT = "ash> ";
@@ -50,6 +51,7 @@ void handleSIGINT(int signum) {
 
 void handleSIGSEGV(int signum) {
 	flushDebug();
+	munmap(sigMem->metadata.heap[SHELL_HEAP], PAGESIZE);
 	munmap(sigMem, SIG_MEM_SIZE);
 	deleteEnv();
 	write(STDOUT_FILENO, "Shell got SIGSEGV'd\n", 20);
@@ -367,7 +369,8 @@ action_t runProgram(int argc, char** _argv) {
 		return SH_ERR;
 	}
 
-	char** argv = malloc(sizeof(char*) * argc);
+
+	char** argv = smalloc(sizeof(char*) * argc);
 	if (!argv) {
 		dLog(D_ERR_MEM, DSEV_WARN, "Could not allocate memory for argv. Will not run program.");
 		return SH_ERR;
@@ -488,11 +491,26 @@ int main(int argc, char const* argv[]) {
 
 	close(fd);
 
+	sigMem = (SigMem*) _sigMem;
+
+
+	fd = shm_open(SHMEM_HEAP, O_RDWR, 0666);
+	if (fd == -1) dFatal(D_ERR_SHAREDMEM, "Could not open shared memory for signal heap!");
+
+	void* _sigHeap = mmap(NULL, PAGESIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+	if (_sigHeap == MAP_FAILED) dFatal(D_ERR_MEM, "Could not mmap signal heap!");
+
+	dDebug(DB_DETAIL, "Signal Heap opened at %p", _sigMem);
+
+	sigMem->metadata.heap[SHELL_HEAP] = _sigHeap;
+
+	sinit(_sigHeap);
+
+
 	redefineSignal(SIGINT, &handleSIGINT);
 	redefineSignal(SIGUSR1, &handleSIGUSR1);
 	redefineSignal(SIGSEGV, &handleSIGSEGV);
 
-	sigMem = (SigMem*) _sigMem;
 
 	// Block until signal
 	signal_t* universalSig = GET_SIGNAL(sigMem->signals, UNIVERSAL_SIG);
@@ -548,6 +566,7 @@ int main(int argc, char const* argv[]) {
 	ackd = 0x0;
 	while (ackd != 0x1) ackd = SIG_GET(sig->ackMask, emSIG_SHUTDOWN_IDX);
 
+	munmap(sigMem->metadata.heap[SHELL_HEAP], PAGESIZE);
 	munmap(sigMem, SIG_MEM_SIZE);
 	deleteEnv();
 

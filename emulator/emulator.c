@@ -16,6 +16,7 @@
 #include "diagnostics.h"
 #include "shmem.h"
 #include "loader.h"
+#include "sigHeap.h"
 
 
 #define KERN_START 0xA0080000 
@@ -153,8 +154,8 @@ static SigMem* createSignalMemory() {
 
 	SigMem* sigMem = (SigMem*) _sigMem;
 
-	// Create the shared heap
 
+	// Create the shared heap
 	fd = shm_open(SHMEM_HEAP, O_CREAT | O_RDWR, 0666);
 	if (fd == -1) dFatal(D_ERR_SHAREDMEM, "Could not open shared memory for signal heap!");
 
@@ -169,6 +170,8 @@ static SigMem* createSignalMemory() {
 	dLog(D_NONE, DSEV_INFO, "Signal Heap created at %p!", _sigHeap);
 
 	sigMem->metadata.heap[EMU_HEAP] = _sigHeap;
+
+	sinit(_sigHeap);
 
 	return sigMem;
 }
@@ -362,6 +365,7 @@ int main(int argc, char const* argv[]) {
 
 	// munmap(kernimg, )
 	munmap(emulatedMemory, MEMORY_SPACE_SIZE);
+	munmap(signalsMemory->metadata.heap[EMU_HEAP], PAGESIZE);
 	munmap(signalsMemory, SIG_MEM_SIZE);
 	
 	return 0;
