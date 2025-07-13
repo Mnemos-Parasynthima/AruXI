@@ -1,3 +1,4 @@
+#include <string.h>
 #include <signal.h>
 #include <sys/types.h>
 #include <pthread.h>
@@ -34,8 +35,8 @@ static void fault() {
 
 static void fetch() {
 	memerr_t err;
-	dLog(D_NONE, DSEV_INFO, "\nfetch::Fetching from 0x%x...", core.IR);
-	imem(core.IR, &core.uarch.fetchCtx.instrbits, &err);
+	dLog(D_NONE, DSEV_INFO, "fetch::Fetching from 0x%x...", core.IR);
+	imem(core.IR, &FetchCtx.instrbits, &err);
 
 	core.IR += 4;
 
@@ -50,22 +51,22 @@ static void fetch() {
 		}
 	}
 
-	dLog(D_NONE, DSEV_INFO, "fetch::Got 0x%x", core.uarch.fetchCtx.instrbits);
+	dLog(D_NONE, DSEV_INFO, "fetch::Got 0x%x", FetchCtx.instrbits);
 }
 
 
 void extractImm() {
-	uint16_t imm14 = u32bitextract(core.uarch.fetchCtx.instrbits, 10, 14);
-	int32_t simm24 = s32bitextract(core.uarch.fetchCtx.instrbits, 0, 24);
-	int32_t simm19 = s32bitextract(core.uarch.fetchCtx.instrbits, 5, 19);
-	uint16_t simm9 = s32bitextract(core.uarch.fetchCtx.instrbits, 15, 9);
+	uint16_t imm14 = (uint16_t) u32bitextract(FetchCtx.instrbits, 10, 14);
+	int32_t simm24 = (int32_t) s32bitextract(FetchCtx.instrbits, 0, 24);
+	int32_t simm19 = (int32_t) s32bitextract(FetchCtx.instrbits, 5, 19);
+	int16_t simm9 = s32bitextract(FetchCtx.instrbits, 15, 9);
 
-	opcode_t opcode = core.uarch.fetchCtx.opcode;
+	opcode_t opcode = FetchCtx.opcode;
 	itype_t type = NO_TYPE;
 	int32_t imm = 0x0;
 
 	if (opcode >= OP_NOP && opcode <= OP_CMP) {
-		if (((((core.uarch.fetchCtx.instrbits >> 24) & 0xff) & 0b1) == 0b0) && (opcode <= OP_MUL || opcode >= OP_SDIV)) {
+		if (((((FetchCtx.instrbits >> 24) & 0xff) & 0b1) == 0b0) && (opcode <= OP_MUL || opcode >= OP_SDIV)) {
 			imm = imm14; // I-types
 			type = I_TYPE;
 		} else type = R_TYPE;
@@ -80,24 +81,24 @@ void extractImm() {
 		type = BC_TYPE;
 	}
 
-	core.uarch.decodeCtx.imm = imm;
-	core.uarch.decodeCtx.iType = type;
+	DecodeCtx.imm = imm;
+	DecodeCtx.iType = type;
 }
 
 void extractRegs() {
-	uint8_t _rd = u32bitextract(core.uarch.fetchCtx.instrbits, 0, 5);
-	uint8_t _rsIS = u32bitextract(core.uarch.fetchCtx.instrbits, 5, 5);
-	uint8_t _rsR = u32bitextract(core.uarch.fetchCtx.instrbits, 10, 5);
-	uint8_t _rr = u32bitextract(core.uarch.fetchCtx.instrbits, 5, 5);
+	uint8_t _rd = u32bitextract(FetchCtx.instrbits, 0, 5);
+	uint8_t _rsIS = u32bitextract(FetchCtx.instrbits, 5, 5);
+	uint8_t _rsR = u32bitextract(FetchCtx.instrbits, 10, 5);
+	uint8_t _rr = u32bitextract(FetchCtx.instrbits, 5, 5);
 
 	uint8_t rd, rs, rr;
 
-	itype_t type = core.uarch.decodeCtx.iType;
-	opcode_t opcode = core.uarch.fetchCtx.opcode;
+	itype_t type = DecodeCtx.iType;
+	opcode_t opcode = FetchCtx.opcode;
 
 	if (opcode == OP_UBR || opcode == OP_RET) {
-		rd = _rd; // Bu-Type
-		core.uarch.decodeCtx.iType = BU_TYPE;
+		rs = _rd; // Bu-Type
+		DecodeCtx.iType = BU_TYPE;
 	} else if (type == I_TYPE) {
 		rd = _rd;
 		rs = _rsIS;
@@ -105,6 +106,14 @@ void extractRegs() {
 		rd = _rd;
 		rs = _rsR;
 		rr = _rr;
+
+		if (type == M_TYPE) {
+			// There is either `reg, [x]`, `reg, [x, imm]`, or `reg, [x], y`
+			// Meaning addition will either be in between x and imm or x and y
+			// rd in this context means the register containing the stuff to store
+			// rs meaning the base register
+			// rr meaning the index register (gets added to base)
+		}
 	} else if (type == S_TYPE) {
 		if (opcode == OP_MVCSTR) {
 			rs = _rsIS;
@@ -113,20 +122,21 @@ void extractRegs() {
 		}
 	}
 
-	core.uarch.decodeCtx.rd = rd;
-	core.uarch.decodeCtx.rs = rs;
-	core.uarch.decodeCtx.rr = rr;
+	DecodeCtx.rd = rd;
+	DecodeCtx.rs = rs;
+	DecodeCtx.rr = rr;
 }
 
 void decideALUOp() {
 	aluop_t aluop = ALU_PASS;
-	switch (core.uarch.fetchCtx.opcode)	{
+	switch (FetchCtx.opcode)	{
 		// MV, MVN, CMP, and NOP do not appear as they are aliased
 
 		case OP_ADD: case OP_ADDS: case OP_LD: case OP_LDB:
 		case OP_LDBS: case OP_LDBZ: case OP_LDH: case OP_LDHS:
 		case OP_LDHZ: case OP_STR: case OP_STRB: case OP_STRH:
 		case OP_MV: // MV includes both MVI and MVR, which MVR uses OR
+		case OP_CALL:
 			aluop = ALU_PLUS;
 			break;
 		case OP_SUB: case OP_SUBS: case OP_MVN: case OP_CMP:
@@ -163,13 +173,46 @@ void decideALUOp() {
 			break;
 	}
 
-	core.uarch.decodeCtx.aluop = aluop;
+	DecodeCtx.aluop = aluop;
+}
+
+static void nextIR() {
+	// UB only needs imm and IR, all execution happens here
+	// UBR/RET only needs to have value of xd from regfile, all execution happens here
+	// BCOND needs imm and condval from prev execution, all execution happens here
+	// CALL only needs imm and IR; writeback for lr is later
+	// 	If before ALU(), place IR contents to vala and 4 to valb
+	// 	Aka have CALL intercept since it doesn't have its data in encoding
+
+	if (DecodeCtx.iType == BI_TYPE) {
+		if (FetchCtx.opcode == OP_CALL) {
+			// Intercept for ALU to do LR := IR + 4
+			
+			DecodeCtx.rd = 28; // LR
+			ExecuteCtx.aluVala = core.IR-4; // undo the +4
+			ExecuteCtx.aluValb = 0x4;
+
+			dLog(D_NONE, DSEV_INFO, "execute::call val a: 0x%x; val b: 0x%x; rd: %d", ExecuteCtx.aluVala, ExecuteCtx.aluValb, DecodeCtx.rd);
+		}
+		// IR += 4 was done automatically after imem, reverse it
+		core.IR = (core.IR-4) + ((DecodeCtx.imm & 0xffffff) << 2);
+		return;
+	}
+
+	if (DecodeCtx.iType == BU_TYPE) {
+		// vala comes from rs
+		core.IR = DecodeCtx.vala;
+		return;
+	}
+
+	// else BCOND
+	if (ExecuteCtx.cond) core.IR = (core.IR-4) + ((DecodeCtx.imm & 0x7ffff) << 2);
 }
 
 static void decode() {
-	uint8_t opcode = (core.uarch.fetchCtx.instrbits >> 24) & 0xff;
+	uint8_t opcode = (FetchCtx.instrbits >> 24) & 0xff;
 	opcode_t code = imap[opcode];
-	core.uarch.fetchCtx.opcode = code;
+	FetchCtx.opcode = code;
 
 	dLog(D_NONE, DSEV_INFO, "decode::Opcode: 0x%x; code %d -> %s", opcode, code, (code != OP_ERROR) ? istrmap[code] : "OP_ERROR");
 
@@ -184,29 +227,29 @@ static void decode() {
 		}
 	}
 
-	if (code == OP_ADDS || code == OP_SUBS || code == OP_CMP) core.uarch.decodeCtx.setCC = true;
-	else core.uarch.decodeCtx.setCC = false;
+	if (code == OP_ADDS || code == OP_SUBS || code == OP_CMP) DecodeCtx.setCC = true;
+	else DecodeCtx.setCC = false;
 
 	switch (code) {
 		case OP_LDB: case OP_LDBS: case OP_LDBZ: case OP_STRB:
-			core.uarch.decodeCtx.memSize = 1;
+			DecodeCtx.memSize = 1;
 			break;
 		case OP_LDH: case OP_LDHS: case OP_LDHZ: case OP_STRH:
-			core.uarch.decodeCtx.memSize = 2;
+			DecodeCtx.memSize = 2;
 			break;
 		case OP_LD: case OP_STR:
-			core.uarch.decodeCtx.memSize = 4;
+			DecodeCtx.memSize = 4;
 			break;
 		default:
-			core.uarch.decodeCtx.memSize = 0;
+			DecodeCtx.memSize = 0;
 			break;
 	}
 
 	// Subdivide for S-types
 	if (code == OP_SYS) {
-		core.uarch.decodeCtx.iType = S_TYPE;
+		DecodeCtx.iType = S_TYPE;
 		// get subopcode
-		uint8_t subopcode = u32bitextract(core.uarch.fetchCtx.instrbits, 20, 4);
+		uint8_t subopcode = u32bitextract(FetchCtx.instrbits, 20, 4);
 		opcode_t subcode = OP_ERROR;
 		switch (subopcode)	{
 			case 0b0001: subcode = OP_SYSCALL; break;
@@ -236,49 +279,79 @@ static void decode() {
 			}
 		}
 
-		core.uarch.fetchCtx.opcode = subcode;
+		FetchCtx.opcode = subcode;
 	}
 
 	extractImm();
-	dLog(D_NONE, DSEV_INFO, "decode::Imm: 0x%x", core.uarch.decodeCtx.imm);
+	dLog(D_NONE, DSEV_INFO, "decode::Imm: 0x%x", DecodeCtx.imm);
 
 	extractRegs();
-	dLog(D_NONE, DSEV_INFO, "decode::Rd: %d; Rs: %d; Rr: %d", core.uarch.decodeCtx.rd, core.uarch.decodeCtx.rs, core.uarch.decodeCtx.rr);
+	dLog(D_NONE, DSEV_INFO, "decode::Rd: %d; Rs: %d; Rr: %d", DecodeCtx.rd, DecodeCtx.rs, DecodeCtx.rr);
 
 	DecodeCtx.regwrite = false;
 	DecodeCtx.memwrite = false;
 
-	if (DecodeCtx.iType == I_TYPE || DecodeCtx.iType == R_TYPE || (FetchCtx.opcode >= OP_LD && FetchCtx.opcode <= OP_LDHZ)) DecodeCtx.regwrite = true;
+	if (DecodeCtx.iType == I_TYPE || DecodeCtx.iType == R_TYPE || (FetchCtx.opcode >= OP_LD && FetchCtx.opcode <= OP_LDHZ) || FetchCtx.opcode == OP_CALL) DecodeCtx.regwrite = true;
 	if (FetchCtx.opcode >= OP_LD && FetchCtx.opcode <= OP_LDHZ) DecodeCtx.memwrite = true;
 
+	if (FetchCtx.opcode >= OP_STR && FetchCtx.opcode <= OP_STRH) MemoryCtx.write = true;
+	else MemoryCtx.write = false;
+
 	decideALUOp();
-	dLog(D_NONE, DSEV_INFO, "decode::ALU OP: %d", core.uarch.decodeCtx.aluop);
+	dLog(D_NONE, DSEV_INFO, "decode::ALU OP: %s", ALUOP_STR[DecodeCtx.aluop]);
 
 	regfile(false);
-	dLog(D_NONE, DSEV_INFO, "decode::Reg A val: 0x%x; Reg B val: 0x%x", core.uarch.decodeCtx.vala, core.uarch.decodeCtx.valb);
+	dLog(D_NONE, DSEV_INFO, "decode::Reg A val: 0x%x; Reg B val: 0x%x", DecodeCtx.vala, DecodeCtx.valb);
+
+	// Val ex for M types contain
 }
 
 static void execute() {
-	dLog(D_NONE, DSEV_INFO, "execute::");
+	ExecuteCtx.aluVala = DecodeCtx.vala;
+	
+	if (DecodeCtx.iType == I_TYPE || DecodeCtx.iType == M_TYPE) ExecuteCtx.aluValb = DecodeCtx.imm;
+	else ExecuteCtx.aluValb = DecodeCtx.valb;
 
-	core.uarch.executeCtx.vala = core.uarch.decodeCtx.vala;
+	// M types can either use imm as aluvalb or valb (index reg) as aluvalb
+	if (DecodeCtx.iType == M_TYPE) {
+		if (DecodeCtx.imm == 0) {
+			// It is difficult to detect the usage based off on the bits (for now, maybe use some bits as indication???)
+			// On assembling, if no offset is used, it is stored as 0, if no index is used, it is stored as x30
+			// meaning it could go like xd, [x, #0], [x30]
+			// Zero will be added to anyway
+			// Thus assume if no imm (#0), it uses index (rr/valb)
+			// If by coincidence, imm is #0 (no much point but for clarity can be done), the presence of x30 takes care of it
+			ExecuteCtx.aluValb = DecodeCtx.valb;
+		}
+		// Else is aluValb = imm, which can be done in earlier code
+	}
 
-	if (core.uarch.decodeCtx.iType == I_TYPE) core.uarch.executeCtx.valb = core.uarch.decodeCtx.imm;
-	else core.uarch.executeCtx.valb = core.uarch.decodeCtx.valb;
-	dLog(D_NONE, DSEV_INFO, "execute::Val a: 0x%x; Val b: 0x%x", core.uarch.executeCtx.vala, core.uarch.executeCtx.valb);
+	nextIR();
+	dLog(D_NONE, DSEV_INFO, "execute::Next IR: 0x%x", core.IR);
+	dLog(D_NONE, DSEV_INFO, "execute::ALU Val a: 0x%x; ALU Val b: 0x%x;", ExecuteCtx.aluVala, ExecuteCtx.aluValb);
+
 	alu();
-	dLog(D_NONE, DSEV_INFO, "execute::Val res: 0x%x", core.uarch.executeCtx.valres);
+	dLog(D_NONE, DSEV_INFO, "execute::Val res: 0x%x", ExecuteCtx.alures);
+
+	if (FetchCtx.opcode >= OP_STR && FetchCtx.opcode <= OP_STRH) MemoryCtx.valmem = DecodeCtx.valex;
+
+	// fpu();
+	// vcu();
 }
 
 static void memory() {
+	// if (FetchCtx.opcode >= OP_STR && FetchCtx.opcode <= OP_STRH) {
+	// 	Mem
+	// }
+
 	memerr_t err = MEMERR_NONE;
 
-	if (core.uarch.memoryCtx.write) {
-		dmem(core.uarch.executeCtx.valres, NULL, &(core.uarch.memoryCtx.valmem), &err);
-		dLog(D_NONE, DSEV_INFO, "memory::Writing 0x%x to memory address 0x%x", core.uarch.memoryCtx.valmem, core.uarch.executeCtx.valres);
+	if (MemoryCtx.write) {
+		dLog(D_NONE, DSEV_INFO, "memory::Writing 0x%x to memory address 0x%x", MemoryCtx.valmem, ExecuteCtx.alures);
+		dmem(ExecuteCtx.alures, NULL, &(MemoryCtx.valmem), &err);
 	}	else {
-		dmem(core.uarch.executeCtx.valres, &(core.uarch.executeCtx.valb), NULL, &err);
-		dLog(D_NONE, DSEV_INFO, "memory::Read 0x%x from memory address 0x%x", core.uarch.executeCtx.valb, core.uarch.executeCtx.valres);
+		dmem(ExecuteCtx.alures, &(ExecuteCtx.aluValb), NULL, &err);
+		dLog(D_NONE, DSEV_INFO, "memory::Read 0x%x from memory address 0x%x", ExecuteCtx.aluValb, ExecuteCtx.alures);
 	}
 
 	if (err == MEMERR_INTERNAL) {
@@ -316,8 +389,8 @@ static void memory() {
 	}
 
 
-	if (DecodeCtx.memwrite) MemoryCtx.valout = MemoryCtx.valmem;
-	else MemoryCtx.valout = ExecuteCtx.valres;
+	if (DecodeCtx.memwrite) MemoryCtx.valout = ExecuteCtx.aluValb;
+	else MemoryCtx.valout = ExecuteCtx.alures;
 
 	regfile(DecodeCtx.regwrite);
 }
@@ -342,6 +415,8 @@ void initCore() {
 	}
 
 	core.CSTR = 0x0000;
+
+	memset(&core.uarch, 0x0, sizeof(InstrCtx));
 }
 
 void* runCore(void* _) {
@@ -352,13 +427,14 @@ void* runCore(void* _) {
 	while (true) {
 		pthread_mutex_lock(&idleLock);
 		if (!IDLE) {
+			dLog(D_NONE, DSEV_INFO, "\nCycle %d", runningCycles);
 			fetch();
 			decode();
 			execute();
 			memory();
 			runningCycles++;
 
-			// if (runningCycles == 8) {
+			// if (runningCycles == 68) {
 			// 	IDLE = true;
 			// 	pthread_cond_signal(&idleCond);
 			// }

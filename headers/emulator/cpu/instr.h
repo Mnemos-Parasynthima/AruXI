@@ -87,6 +87,21 @@ typedef enum aluOP {
 	ALU_PASS
 } aluop_t;
 
+static char* ALUOP_STR[] = {
+	"ALU_PLUS",
+	"ALU_MINUS",
+	"ALU_MUL",
+	"ALU_DIV",
+	"ALU_OR",
+	"ALU_XOR",
+	"ALU_AND",
+	"ALU_LSL",
+	"ALU_LSR",
+	"ALU_ASR",
+	"ALU_INV",
+	"ALU_PASS"
+};
+
 typedef enum {
 	NO_TYPE = -1,
 	I_TYPE,
@@ -110,23 +125,30 @@ typedef struct InstructionContext {
 		int32_t imm;
 		uint32_t rd, rs, rr;
 		aluop_t aluop;
-		uint32_t vala, valb;
+		uint32_t vala, valb, valex;
 		bool setCC;
 		int memSize;
 		bool regwrite; // Write to register
-		bool memwrite; // Write the memory contents to register
+		bool memwrite; // Write the memory contents to register (ld*)
 	} decodeCtx;
 
 	struct {
-		uint32_t vala;
-		uint32_t valb;
-		uint32_t valres;
+		uint32_t aluVala; // ALU input
+		uint32_t aluValb; // ALU input
+		uint32_t alures; // ALU output
+		bool cond;
+
+		float fpuVala; // FPU input
+		float fpuValb; // FPU input
+		float fpures; // FPU output
+
+
 	} executeCtx;
 
 	struct {
-		uint32_t valmem;
+		uint32_t valmem; // Data to write
 		bool write;
-		uint32_t valout;
+		uint32_t valout; // Data read
 	} memoryCtx;
 } InstrCtx;
 
@@ -136,6 +158,6 @@ typedef struct InstructionContext {
 #define MemoryCtx core.uarch.memoryCtx
 
 #define u32bitextract(bits, start, width) ((bits>>start) & ((1<<width)-1))
-#define s32bitextract(bits, start, width) ((((bits>>start) & ((1<<width)-1)) << (32-width))) >> (32-width)
+#define s32bitextract(bits, start, width) ( (int32_t)(( (bits>>start) & ((1<<width)-1) ) << (32-width)) ) >> (32-width)
 
 #endif
