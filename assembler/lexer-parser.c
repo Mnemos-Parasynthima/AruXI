@@ -664,7 +664,7 @@ HANDLE_INSTR(handleM) {
 
 	char* base = NULL;
 	char* offset = PTR(0xFEEDFAED);
-	char* index = "xz";
+	char* index = PTR(0xFEEDFAED);
 
 	// Skip all whitespace until '['
 	// strtok is not used as there is no need to null-terminate early
@@ -852,6 +852,17 @@ HANDLE_INSTR(handleM) {
 	validateRegister(base);
 	// Maybe defer offset validation later
 	// validateImmediate(offset, SIMM9);
+
+	// When using index addressing, no offset allowed and vice versa
+	if (offset != PTR(0xFEEDFAED) && index != PTR(0xFEEDFAED)) {
+		// Both got assigned to something, disallow it
+		handleError(ERR_INVALID_SYNTAX, FATAL, "Indexed and Offset addressing not allowed in the same operation for `%s`\n", instr);
+	} else {
+		if (index == PTR(0xFEEDFAED)) {
+			// Only offset got assigned, need to have index be XZ
+			index = "xz";
+		}
+	}
 
 	char* operands[5] = { xd, base, offset, index, NULL };
 
