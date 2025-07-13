@@ -1,3 +1,6 @@
+#include <stdlib.h>
+#include <string.h>
+
 #include "emSignal.h"
 
 
@@ -21,21 +24,25 @@ void setupSignals(SigMem* signalMemory) {
 	universalSignals->intEnable = emSIG_SHUTDOWN | emSIG_FAULT | emSIG_READY;
 	universalSignals->ackMask = 0x0;
 	universalSignals->payloadValid = 0x0;
+	memset(&universalSignals->metadata, 0x0, sizeof(pd_metadata));
 	
 	emuShellSignals->interrupts = 0x0;
 	emuShellSignals->intEnable = emSIG_LOAD | emSIG_SAVE;
 	emuShellSignals->ackMask = 0x0;
 	emuShellSignals->payloadValid = 0x0;
+	memset(&emuShellSignals->metadata, 0x0, sizeof(pd_metadata));
 
 	emuCPUSignals->interrupts = 0x0;
 	emuCPUSignals->intEnable = emSIG_CPU_SAVE | emSIG_CPU_SAVED;
 	emuCPUSignals->ackMask = 0x0;
 	emuCPUSignals->payloadValid = 0x0;
+	memset(&emuCPUSignals->metadata, 0x0, sizeof(pd_metadata));
 
 	shellCPUSignals->interrupts = 0x0;
 	shellCPUSignals->intEnable = emSIG_ERROR | emSIG_EXIT | emSIG_KILL | emSIG_EXEC;
 	shellCPUSignals->ackMask = 0x0;
 	shellCPUSignals->payloadValid = 0x0;
+	memset(&shellCPUSignals->metadata, 0x0, sizeof(pd_metadata));
 }
 
 
@@ -101,7 +108,17 @@ int setLoadSignal(signal_t* signal, loadprog_md* metadata) {
 	signal->interrupts = SIG_SET(signal->interrupts, emSIG_LOAD_IDX);
 	signal->payloadValid = SIG_SET(signal->payloadValid, emSIG_LOAD_IDX);
 
+	if (signal->metadata.loadprog.program) {
+		// Will be replacing pointers, free stuff from before
+		free(signal->metadata.loadprog.program);
+		for (int i = 0; i < signal->metadata.loadprog.argc; i++) {
+			free(signal->metadata.loadprog.argv[i]);
+		}
+		free(signal->metadata.loadprog.argv);
+	}
+
 	signal->metadata.loadprog.program = metadata->program;
+	signal->metadata.loadprog.argc = metadata->argc;
 	signal->metadata.loadprog.argv = metadata->argv;
 
 	return SIG_GET(signal->interrupts, emSIG_LOAD_IDX);

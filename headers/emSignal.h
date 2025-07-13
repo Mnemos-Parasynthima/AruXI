@@ -41,6 +41,7 @@
 
 typedef struct LoadprogMetadata {
 	char* program;
+	int argc;
 	char** argv;
 } loadprog_md;
 
@@ -52,16 +53,18 @@ typedef struct SyscallreqMetadata {
 
 } syscallReq_md;
 
+typedef union PayloadMetadata {
+	loadprog_md loadprog;
+	execprog_md execprog;
+	syscallReq_md syscalReq;
+} pd_metadata;
+
 typedef struct Signal {
 	uint32_t interrupts;
 	uint32_t intEnable;
 	uint32_t ackMask;
 	uint32_t payloadValid;
-	union {
-		loadprog_md loadprog;
-		execprog_md execprog;
-		syscallReq_md syscalReq;
-	} metadata;
+	pd_metadata metadata;
 } signal_t;
 
 typedef struct SignalMetadata {
