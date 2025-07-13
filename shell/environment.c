@@ -103,23 +103,24 @@ void printEnv() {
 
 char* pathtok(char* _path, char** save) {
 	if (!save) return NULL;
-	if (!*save) return NULL;
-
+	
 	const char delim = ':';
-
+	
 	char* path = NULL;
-	if (!_path) path = *save;
-	else path = _path;
+	if (!_path) {
+		if (!*save) return NULL;
+		path = *save;
+	} else path = _path;
 
 	char* pathtok = path;
 	char* temp = pathtok;
 
 	if (!*path) return NULL;
 
-	// Restore
-	if (*(path-1) == '\0') *(path-1) = delim;
+	// Restore when it has been modified
+	if (_path && *(path-1) == '\0') *(path-1) = delim;
 
-	while (*temp != delim || *temp != '\0') {
+	while (*temp != '\0' && *temp != delim) {
 		temp++;
 	}
 
