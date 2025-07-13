@@ -108,14 +108,9 @@ int setLoadSignal(signal_t* signal, loadprog_md* metadata) {
 	signal->interrupts = SIG_SET(signal->interrupts, emSIG_LOAD_IDX);
 	signal->payloadValid = SIG_SET(signal->payloadValid, emSIG_LOAD_IDX);
 
-	if (signal->metadata.loadprog.program) {
-		// Will be replacing pointers, free stuff from before
-		free(signal->metadata.loadprog.program);
-		for (int i = 0; i < signal->metadata.loadprog.argc; i++) {
-			free(signal->metadata.loadprog.argv[i]);
-		}
-		free(signal->metadata.loadprog.argv);
-	}
+	// Free since pointers will be replaced
+	// `program` is part of `argv`
+	if (signal->metadata.loadprog.argv) free(signal->metadata.loadprog.argv);
 
 	signal->metadata.loadprog.program = metadata->program;
 	signal->metadata.loadprog.argc = metadata->argc;

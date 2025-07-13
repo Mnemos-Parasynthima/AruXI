@@ -7,9 +7,11 @@
 #include <sys/shm.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
+#include <sys/types.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <termios.h>
+#include <signal.h>
 
 #include "emSignal.h"
 #include "shmem.h"
@@ -39,6 +41,7 @@ typedef enum {
 
 /**
  * Handle SIGINT (Ctrl+C) by simply ignoring it.
+ * Will later make it stop the running program.
  * @param signum 
  */
 void handleSIGINT(int signum) {
@@ -354,7 +357,7 @@ action_t runProgram(int argc, char** _argv) {
 		return SH_ERR;
 	}
 
-	char** argv = malloc(sizeof(char) * argc);
+	char** argv = malloc(sizeof(char*) * argc);
 	if (!argv) {
 		dLog(D_ERR_MEM, DSEV_WARN, "Could not allocate memory for argv. Will not run program.");
 		return SH_ERR;
@@ -363,6 +366,7 @@ action_t runProgram(int argc, char** _argv) {
 		argv[i] = strdup(_argv[i]);
 		if (!argv[i]) {
 			dLog(D_ERR_MEM, DSEV_WARN, "Could not allocate memory for argv[i]. Will not run program.");
+			free(argv);
 			return SH_ERR;
 		}
 	}
@@ -382,6 +386,7 @@ action_t runProgram(int argc, char** _argv) {
 		pathStr = pathtok(NULL, &pathsave);
 	}
 
+	sigMem->metadata.signalType = EMU_SHELL_SIG;
 	signal_t* shellEmuSignal = GET_SIGNAL(sigMem->signals, EMU_SHELL_SIG);
 	loadprog_md metadata = {
 		.program = program,
@@ -390,6 +395,23 @@ action_t runProgram(int argc, char** _argv) {
 	};
 	int ret = setLoadSignal(shellEmuSignal, &metadata);
 	if (ret == -1) dFatal(D_ERR_SIGNAL, "No access for load signal!");
+
+	// Tell the emulator to load
+	// kill(sigMem->metadata.emulatorPID, SIGUSR1);
+
+	// Block until it has been loaded (emulator has ack'd it)
+
+
+	sigMem->metadata.signalType = SHELL_CPU_SIG;
+	signal_t* shellCPUSignal = GET_SIGNAL(sigMem->signals, SHELL_CPU_SIG);
+	execprog_md execMetadata = {
+		.entry = 0xB8080000 + 32
+	};
+	ret = setExecSignal(shellCPUSignal, &execMetadata);
+	if (ret == -1) dFatal(D_ERR_SIGNAL, "No access for load signal!");
+	
+	// Tell the cpu to execute
+	// kill(sigMem->metadata.cpuPID, SIGUSR1);
 
 	return SH_RUN;
 }

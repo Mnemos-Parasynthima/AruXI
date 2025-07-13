@@ -118,7 +118,7 @@ char* pathtok(char* _path, char** save) {
 	if (!*path) return NULL;
 
 	// Restore when it has been modified
-	if (_path && *(path-1) == '\0') *(path-1) = delim;
+	if (*save && *(path-1) == '\0') *(path-1) = delim;
 
 	while (*temp != '\0' && *temp != delim) {
 		temp++;

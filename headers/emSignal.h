@@ -71,7 +71,7 @@ typedef struct SignalMetadata {
 	pid_t emulatorPID;
 	pid_t shellPID;
 	pid_t cpuPID;
-	uint8_t signalType;
+	uint8_t signalType; // The type of signal to check (*_SIG)
 } signal_md;
 
 typedef struct SignalMemory {
