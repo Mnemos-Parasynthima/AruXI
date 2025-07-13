@@ -86,6 +86,16 @@ char* istrmap[] = {
 	"OP_LDCSTR"
 };
 
+void handleSIGSEGV(int signum) {
+	fflush(stderr);
+	fflush(stdout);
+	flushDebug();
+	write(STDOUT_FILENO, "CPU got SIGSEGV'd\n", 18);
+	munmap(sigMem, SIG_MEM_SIZE);
+	munmap(emMem, MEMORY_SPACE_SIZE);
+	exit(-1);
+}
+
 void handleSIGUSR1(int signum) {
 	// Check metadata
 	uint8_t sigType = sigMem->metadata.signalType;
@@ -107,6 +117,14 @@ void handleSIGUSR1(int signum) {
 					munmap(emMem, MEMORY_SPACE_SIZE);
 					exit(-1);
 					break;
+				case emSIG_EXEC_IDX:
+					write(STDOUT_FILENO, "CPU detected SIG_EXEC\n", 22);
+					core.IR = sig->metadata.execprog.entry;
+					// Resume core
+					pthread_mutex_lock(&idleLock);
+					IDLE = false;
+					pthread_mutex_unlock(&idleLock);
+					ackExecSignal(sig);
 				default:
 					break;
 			}
@@ -193,6 +211,8 @@ int main(int argc, char const* argv[]) {
 	void* _sigMem = mmap(NULL, SIG_MEM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
 	if (_sigMem == MAP_FAILED) dFatal(D_ERR_MEM, "Could not mmap signal memory!");
 
+	dLog(D_NONE, DSEV_INFO, "Signal Memory opened at %p", _sigMem);
+
 	close(fd);
 
 	fd = shm_open(SHMEM_MEM, O_RDWR, 0666);
@@ -207,6 +227,7 @@ int main(int argc, char const* argv[]) {
 	emMem = (uint8_t*) _emMem;
 
 	redefineSignal(SIGUSR1, &handleSIGUSR1);
+	redefineSignal(SIGSEGV, &handleSIGSEGV);
 	initCore();
 	initIMap();
 

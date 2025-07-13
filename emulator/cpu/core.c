@@ -443,6 +443,15 @@ void* runCore(void* _) {
 			if (core.status == STAT_HLT) {
 				IDLE = true;
 				pthread_cond_signal(&idleCond);
+
+				// shell is the only one waiting on program exit
+				// update SIG_EXIT
+				// Note that on first run (kernel code is ran), setting SIG_EXIT will not matter
+				signal_t* sig = GET_SIGNAL(sigMem->signals, SHELL_CPU_SIG);
+				sig->interrupts = SIG_SET(sig->interrupts, emSIG_EXIT_IDX);
+
+				// Reset cycles???
+				runningCycles = 0;
 			}
 		} else {
 			pthread_mutex_unlock(&idleLock);

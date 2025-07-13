@@ -48,6 +48,14 @@ void handleSIGINT(int signum) {
 	tcflush(STDIN_FILENO, TCIFLUSH);
 }
 
+void handleSIGSEGV(int signum) {
+	flushDebug();
+	munmap(sigMem, SIG_MEM_SIZE);
+	deleteEnv();
+	write(STDOUT_FILENO, "Shell got SIGSEGV'd\n", 20);
+	exit(-1);
+}
+
 /**
  * Handle SIGUSR1. SIGUSR1 indicates as a poke to tell the process to check the signal memory.
  * @param signum 
@@ -74,6 +82,8 @@ void handleSIGUSR1(int signum) {
 					// ackFaultSignal(sig);
 					exit(1);
 					break;
+				// case emSIG_EXIT_IDX:
+				// 	write(STDOUT_FILENO, "Detected SIG_EXIT\n", 19);
 				default:
 					break;
 			}
@@ -370,7 +380,6 @@ action_t runProgram(int argc, char** _argv) {
 			return SH_ERR;
 		}
 	}
-
 	char* program = argv[0];
 
 	// Check that the program is valid in path
@@ -428,11 +437,11 @@ action_t runProgram(int argc, char** _argv) {
 	sigMem->metadata.signalType = SHELL_CPU_SIG;
 	signal_t* shellCPUSignal = GET_SIGNAL(sigMem->signals, SHELL_CPU_SIG);
 	execprog_md execMetadata = {
-		.entry = 0xB8080000 + 32
+		.entry = 0xB8080000 + 32 // known kernel entry point for running user programs
 	};
 	ret = setExecSignal(shellCPUSignal, &execMetadata);
 	if (ret == -1) dFatal(D_ERR_SIGNAL, "No access for load signal!");
-	
+
 	// Tell the cpu to execute
 	kill(sigMem->metadata.cpuPID, SIGUSR1);
 
@@ -475,10 +484,13 @@ int main(int argc, char const* argv[]) {
 	void* _sigMem = mmap(NULL, SIG_MEM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
 	if (_sigMem == MAP_FAILED) dFatal(D_ERR_MEM, "Could not mmap signal memory!");
 
+	dDebug(DB_DETAIL, "Signal Memory opened at %p", _sigMem);
+
 	close(fd);
 
 	redefineSignal(SIGINT, &handleSIGINT);
 	redefineSignal(SIGUSR1, &handleSIGUSR1);
+	redefineSignal(SIGSEGV, &handleSIGSEGV);
 
 	sigMem = (SigMem*) _sigMem;
 

@@ -4,10 +4,7 @@
 #include <termios.h>
 
 #include "signalHandler.h"
-#include "emSignal.h"
 
-
-extern signal_t* sigMem;
 
 handler_t* redefineSignal(int signum, handler_t* handler) {
 	struct sigaction action, prevAction;

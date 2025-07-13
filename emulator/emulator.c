@@ -8,11 +8,14 @@
 #include <sys/wait.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <signal.h>
 
 #include "emSignal.h"
+#include "signalHandler.h"
 #include "aoef.h"
 #include "diagnostics.h"
 #include "shmem.h"
+#include "loader.h"
 
 
 #define KERN_START 0xA0080000 
@@ -23,6 +26,35 @@
 
 
 SigMem* signalsMemory;
+void* emulatedMemory;
+
+
+/**
+ * 
+ */
+static void handleLoadSignal(signal_t* emuShellSig) {
+	write(STDOUT_FILENO, "handleLoadSignal\n", 17);
+	char* filename = emuShellSig->metadata.loadprog.program;
+
+	char buff[32];
+	sprintf(buff, "filename PTR: %p\n", filename);
+	write(STDOUT_FILENO, buff, 29);
+
+	write(STDOUT_FILENO, "Loading binary\n", 15);
+	uint32_t userEntry = loadBinary(filename, emulatedMemory);
+	write(STDOUT_FILENO, "Binary loaded\n", 14);
+
+	// Place entry point at the top of kernel stack
+	*((uint8_t*)emulatedMemory + 0xFFFFFFFB) = userEntry;
+	write(STDOUT_FILENO, "Entry point written\n", 20);
+
+	// Place arv/argc in user stack
+	// TODO later
+
+	// Ack it so shell can know
+	emuShellSig->ackMask = SIG_SET(emuShellSig->ackMask, emSIG_LOAD_IDX);
+	write(STDOUT_FILENO, "Acked\n", 6);
+}
 
 /**
  * Handle SIGUSR1. SIGUSR1 indicates as a poke to tell the process to check the signal memory.
@@ -30,34 +62,38 @@ SigMem* signalsMemory;
  */
 void handleSIGUSR1(int signum) {
 	// Check metadata
-	write(STDERR_FILENO, "Got SIGUSR1\n", 13);
-	// uint8_t sigType = signalsMemory->metadata.signalType;
-	// signal_t* sig = GET_SIGNAL(signalsMemory->signals, sigType);
+	write(STDOUT_FILENO, "Got SIGUSR1\n", 12);
+	uint8_t sigType = signalsMemory->metadata.signalType;
+	signal_t* sig = GET_SIGNAL(signalsMemory->signals, sigType);
 
-	// uint32_t ints = sig->interrupts;
-	// int i = 0;
+	uint32_t ints = sig->interrupts;
+	int i = 0;
 
-	// while (i <= 31) {
-	// 	uint8_t bit = (ints >> i) & 0b1;
+	while (i <= 31) {
+		uint8_t bit = (ints >> i) & 0b1;
 
-	// 	if (bit == 0b1) {
-	// 		switch (i) 			{
-	// 			case emSIG_FAULT_IDX:
-	// 				munmap(signalsMemory, SIG_MEM_SIZE);
-	// 				deleteEnv();
-	// 				// Possible print?
+		if (bit == 0b1) {
+			switch (i) {
+				case emSIG_LOAD_IDX:
+					write(STDOUT_FILENO, "Emulator detected SIG_LOAD\n", 27);
+					handleLoadSignal(sig);
+					break;
+				default:
+					break;
+			}
+		}
 
-	// 				exit(1);
-	// 				break;
-	// 			default:
-	// 				break;
-	// 		}
-	// 	}
-
-	// 	i++;
-	// }
+		i++;
+	}
 }
 
+void handleSIGSEGV(int signum) {
+	write(STDOUT_FILENO, "Emulator got SIGSEGV'd\n", 23);
+	fflush(stderr);
+	fflush(stdout);
+	flushDebug();
+	exit(-1);
+}
 
 /**
  * Loads the kernel image binary into an mmap'd space for easy of acess, checking that the binary is in the proper format.
@@ -108,11 +144,33 @@ static SigMem* createSignalMemory() {
 	int r = ftruncate(fd, SIG_MEM_SIZE);
 	if (r == -1) dFatal(D_ERR_INTERNAL, "Could not ftruncate!");
 
-	void* sigMem = mmap(NULL, SIG_MEM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-	if (sigMem == MAP_FAILED) dFatal(D_ERR_MEM, "Could not mmap signal memory!");
+	void* _sigMem = mmap(NULL, SIG_MEM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+	if (_sigMem == MAP_FAILED) dFatal(D_ERR_MEM, "Could not mmap signal memory!");
 
 	close(fd);
-	return (SigMem*) sigMem;
+
+	dLog(D_NONE, DSEV_INFO, "Signal Memory created at %p", _sigMem);
+
+	SigMem* sigMem = (SigMem*) _sigMem;
+
+	// Create the shared heap
+
+	fd = shm_open(SHMEM_HEAP, O_CREAT | O_RDWR, 0666);
+	if (fd == -1) dFatal(D_ERR_SHAREDMEM, "Could not open shared memory for signal heap!");
+
+	r = ftruncate(fd, PAGESIZE);
+	if (r == -1) dFatal(D_ERR_INTERNAL, "Could not ftruncate!");
+
+	void* _sigHeap = mmap(NULL, PAGESIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+	if (_sigHeap = MAP_FAILED) dFatal(D_ERR_MEM, "Could not mmap signal heap!");
+
+	close(fd);
+
+	dLog(D_NONE, DSEV_INFO, "Signal Heap created at %p!", _sigHeap);
+
+	sigMem->metadata.heap[EMU_HEAP] = _sigHeap;
+
+	return sigMem;
 }
 
 static void setupKernel(uint8_t* memory, uint8_t* kernimg, signal_t* sigs) {
@@ -130,12 +188,16 @@ static void setupKernel(uint8_t* memory, uint8_t* kernimg, signal_t* sigs) {
 			uint8_t* dataStart = memory + KERN_DATA; // beginning of emulated memory kernel data
 			uint8_t* kernimgData = kernimg + sectHdr->shSectOff; // beginning of binary image kernel data section
 
+			dDebug(DB_DETAIL, "Start of data section in kernel image: %p::Start of kernel data section in emulated memory:%p", kernimgData, dataStart);
+			dDebug(DB_DETAIL, "First item in data: 0x%x from 0x%x", *(dataStart), *(kernimgData));
+
 			memcpy(dataStart, kernimgData, sectHdr->shSectSize);
 		} else if (strncmp(".text", sectHdr->shSectName, 8) == 0) {
 			uint8_t* textStart = memory + KERN_TEXT;
 			uint8_t* kernimgText = kernimg + sectHdr->shSectOff;
 
 			dDebug(DB_DETAIL, "Start of text section in kernel image: %p::Start of kernel text section in emulated memory:%p", kernimgText, textStart);
+			dDebug(DB_DETAIL, "First item in text: 0x%x from 0x%x", *(textStart), *(kernimgText));
 
 			memcpy(textStart, kernimgText, sectHdr->shSectSize);
 		}
@@ -243,10 +305,13 @@ int main(int argc, char const* argv[]) {
 	// Create necessary environment
 	dLog(D_NONE, DSEV_INFO, "Creating environment...");
 	void* kernimg = loadKernel(kernimgFilename);
-	void* emulatedMemory = createMemory();
+	emulatedMemory = createMemory();
 	signalsMemory = createSignalMemory();
 	setupSignals(signalsMemory);
 	dDebug(DB_DETAIL, "Set signals as clean");
+
+	redefineSignal(SIGUSR1, &handleSIGUSR1);
+	redefineSignal(SIGSEGV, &handleSIGSEGV);
 
 	// Spawn CPU
 	pid_t CPUPID = runCPU(cpuimg, log);
