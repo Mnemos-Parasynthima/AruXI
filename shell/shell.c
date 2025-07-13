@@ -100,11 +100,22 @@ void showSigState(int SIG, bool showMetadata, bool showPayload) {
 
 	if (showMetadata) {
 		// Metadata depends on the signal interrupt itself
-		uint8_t execInt =  SIG_GET(signal->interrupts, emSIG_EXEC_IDX);
+		uint8_t execInt = SIG_GET(signal->interrupts, emSIG_EXEC_IDX);
 		if (execInt) {
 			execprog_md metadata = signal->metadata.execprog;
 			printf("\tEXEC Metadata:\n");
 			printf("\t .Entry = 0x%x\n", metadata.entry);
+		}
+
+		uint8_t loadInt = SIG_GET(signal->interrupts, emSIG_LOAD_IDX);
+		if (loadInt) {
+			loadprog_md metadata = signal->metadata.loadprog;
+			printf("\tLOAD Metadata:\n");
+			printf("\t .Program = %s\n", metadata.program);
+			printf("\t .Argc = %d\n", metadata.argc);
+			printf("\t .Argv = {");
+			for (int i = 0; i < metadata.argc-1; i++) printf("%s, ", metadata.argv[i]);
+			printf("%s}\n", metadata.argv[metadata.argc-1]);
 		}
 	}
 }
@@ -337,10 +348,23 @@ action_t shellHelp(int argc, char** argv) {
 	return SH_HELP;
 }
 
-action_t runProgram(int argc, char** argv) {
+action_t runProgram(int argc, char** _argv) {
 	if (argc < 1) {
 		dLog(D_NONE, DSEV_WARN, "Program not found!");
 		return SH_ERR;
+	}
+
+	char** argv = malloc(sizeof(char) * argc);
+	if (!argv) {
+		dLog(D_ERR_MEM, DSEV_WARN, "Could not allocate memory for argv. Will not run program.");
+		return SH_ERR;
+	}
+	for (int i = 0; i < argc; i++) {
+		argv[i] = strdup(_argv[i]);
+		if (!argv[i]) {
+			dLog(D_ERR_MEM, DSEV_WARN, "Could not allocate memory for argv[i]. Will not run program.");
+			return SH_ERR;
+		}
 	}
 
 	char* program = argv[0];
@@ -361,6 +385,7 @@ action_t runProgram(int argc, char** argv) {
 	signal_t* shellEmuSignal = GET_SIGNAL(sigMem->signals, EMU_SHELL_SIG);
 	loadprog_md metadata = {
 		.program = program,
+		.argc = argc,
 		.argv = argv
 	};
 	int ret = setLoadSignal(shellEmuSignal, &metadata);
