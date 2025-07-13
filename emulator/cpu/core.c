@@ -263,6 +263,8 @@ static void decode() {
 			default: break;
 		}
 
+		dLog(D_NONE, DSEV_INFO, "OP_SYS -> %s (opcode %d)", (code != OP_ERROR) ? istrmap[code] : "OP_ERROR", opcode);
+
 		if (subcode == OP_ERROR) {
 			if (GET_PRIV(core.CSTR) == 0b0) { // Kill for kernel code
 				dLog(D_NONE, DSEV_WARN, "Invalid instruction: 0x%x!", opcode);
@@ -334,6 +336,8 @@ static void execute() {
 	dLog(D_NONE, DSEV_INFO, "execute::Val res: 0x%x", ExecuteCtx.alures);
 
 	if (FetchCtx.opcode >= OP_STR && FetchCtx.opcode <= OP_STRH) MemoryCtx.valmem = DecodeCtx.valex;
+
+	if (FetchCtx.opcode == OP_HLT) core.status = STAT_HLT;
 
 	// fpu();
 	// vcu();
@@ -421,6 +425,7 @@ void initCore() {
 
 void* runCore(void* _) {
 	dLog(D_NONE, DSEV_INFO, "Executing core thread...");
+	core.status = STAT_RUNNING;
 
 	int runningCycles = 0;
 	int idleCycles = 0;
@@ -434,10 +439,11 @@ void* runCore(void* _) {
 			memory();
 			runningCycles++;
 
-			// if (runningCycles == 68) {
-			// 	IDLE = true;
-			// 	pthread_cond_signal(&idleCond);
-			// }
+			// When needed, add condition on running cycles
+			if (core.status == STAT_HLT) {
+				IDLE = true;
+				pthread_cond_signal(&idleCond);
+			}
 		} else {
 			pthread_mutex_unlock(&idleLock);
 			idleCycles++;
