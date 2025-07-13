@@ -7,7 +7,8 @@
 
 
 typedef enum status {
-	STAT_HLT
+	STAT_HLT,
+	STAT_RUNNING
 } status_t;
 
 typedef struct VectorRegister {
@@ -26,6 +27,7 @@ typedef struct Core {
 	uint16_t CSTR;
 
 	InstrCtx uarch;
+	status_t status;
 } core_t;
 
 /**
