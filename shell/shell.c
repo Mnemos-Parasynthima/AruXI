@@ -376,14 +376,35 @@ action_t runProgram(int argc, char** _argv) {
 	// Check that the program is valid in path
 	EnvVar* path = getEnv("PATH");
 
+	bool found = false;
 	char* pathsave = NULL;
 	char* pathStr = pathtok(path->value, &pathsave);
 	while (pathStr) {
 		dDebug(DB_BASIC, "path: %s", pathStr);
 		// Look for program in path
+		// Need to add support for when program already includes some semblence of a path (ie ../../prog.aru)
+		// program metadata assumes file is in current directory
+		if (*pathStr == '.' && access(program, F_OK) == 0) {
+			found = true;
+			break;
+		} else {
+			char* fullpath = malloc(sizeof(char) * strlen(pathStr) + strlen(program) + 1);
+			sprintf(fullpath, "%s/%s", pathStr, program);
 
+			if (access(fullpath, F_OK) == 0) {
+				found = true;
+				free(fullpath);
+				break;
+			}
+			free(fullpath);
+		}
 
 		pathStr = pathtok(NULL, &pathsave);
+	}
+
+	if (!found) {
+		dLog(D_ERR_IO, DSEV_WARN, "Could not find program in path.");
+		goto ERR;
 	}
 
 	sigMem->metadata.signalType = EMU_SHELL_SIG;
@@ -397,9 +418,11 @@ action_t runProgram(int argc, char** _argv) {
 	if (ret == -1) dFatal(D_ERR_SIGNAL, "No access for load signal!");
 
 	// Tell the emulator to load
-	// kill(sigMem->metadata.emulatorPID, SIGUSR1);
+	kill(sigMem->metadata.emulatorPID, SIGUSR1);
 
 	// Block until it has been loaded (emulator has ack'd it)
+	uint8_t ackd = 0x0;
+	while (ackd != 0x1) ackd = SIG_GET(shellEmuSignal->ackMask, emSIG_LOAD_IDX);
 
 
 	sigMem->metadata.signalType = SHELL_CPU_SIG;
@@ -411,9 +434,16 @@ action_t runProgram(int argc, char** _argv) {
 	if (ret == -1) dFatal(D_ERR_SIGNAL, "No access for load signal!");
 	
 	// Tell the cpu to execute
-	// kill(sigMem->metadata.cpuPID, SIGUSR1);
+	kill(sigMem->metadata.cpuPID, SIGUSR1);
 
 	return SH_RUN;
+
+	ERR:
+	for (int i = 0; i < argc; i++) {
+		free(argv[i]);
+	}
+	free(argv);
+	return SH_ERR;
 }
 
 action_t eval(Command* cmd) {
@@ -485,13 +515,13 @@ int main(int argc, char const* argv[]) {
 		free(line);
 
 		// Wait for the program to finish before continuing
-		// if (act == SH_RUN) {
-		// 	dDebug(DB_BASIC, "Waiting for program to exit...");
-		// 	signal_t* sig = GET_SIGNAL(sigMem->signals, SHELL_CPU_SIG);
-		// 	uint8_t exited = 0x0;
-		// 	while (exited != 0x1) exited = SIG_GET(sig->interrupts, emSIG_EXIT_IDX);
-		// 	dDebug(DB_BASIC, "Program has exited");
-		// }
+		if (act == SH_RUN) {
+			dDebug(DB_BASIC, "Waiting for program to exit...");
+			signal_t* sig = GET_SIGNAL(sigMem->signals, SHELL_CPU_SIG);
+			uint8_t exited = 0x0;
+			while (exited != 0x1) exited = SIG_GET(sig->interrupts, emSIG_EXIT_IDX);
+			dDebug(DB_BASIC, "Program has exited");
+		}
 
 		if (act == SH_EXIT)	break;
 	}
