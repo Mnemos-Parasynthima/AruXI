@@ -1,7 +1,7 @@
 .glob _init
 .glob _usrSetup
 
-.set HEAP_START, 0x20990000
+.set HEAP_START, 0xD0080000
 .set HEAP_LIMIT, 0xF007FFFF
 .set STACK_START, 0xF0080000
 .set STACK_LIMIT, 0xFFFFFFFF
@@ -35,8 +35,8 @@ _usrSetup:
 	call _setPS
 
 	% restore x1, x2
-	ld c0, [sp, #0x4]
-	ld x0, [sp]
+	ld c0, [sp, #0x4] % restore x2 (argc)
+	ld x0, [sp] % restore x1 (entry point)
 	add sp, sp, #8
 
 	ubr c0
@@ -48,7 +48,13 @@ _setPS:
 	% PS takes up 298 bytes (maybe???)
 
 	mv a0, #298
+	% save LR
+	sub sp, sp, #4
+	str lr, [sp]
 	call _kmalloc
+	% restore lr
+	ld lr, [sp]
+	add sp, sp, #4
 	% xr contains pointer to memory block for PS
 	% save it
 	ld c1, =KERN_PS
@@ -66,11 +72,6 @@ _setPS:
 	ret
 
 
-
-
-
-
-
 _kmalloc:
 	% simple heap bump allocator
 	% void* _kmalloc(uint32_t size)
@@ -79,6 +80,8 @@ _kmalloc:
 
 	ld x10, KERN_HEAPTOP
 	mv xr, x10 % have the previous heaptop be the return
+	% get the actual address
+	ld x10, =KERN_HEAPTOP
 	ld x11, [x10]
 	add x11, x11, a0
 	str x11, [x10]
