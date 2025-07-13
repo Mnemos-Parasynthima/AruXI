@@ -7,10 +7,10 @@ extern core_t core;
 void alu() {
 	uint32_t res = 0xFAEDDEAF;
 
-	uint32_t vala = core.uarch.executeCtx.vala;
-	uint32_t valb = core.uarch.executeCtx.valb;
+	uint32_t vala = ExecuteCtx.aluVala;
+	uint32_t valb = ExecuteCtx.aluValb;
 
-	switch (core.uarch.decodeCtx.aluop)	{
+	switch (DecodeCtx.aluop)	{
 		case ALU_PLUS:
 			res = vala + valb;
 			break;
@@ -50,9 +50,9 @@ void alu() {
 			break;
 	}
 
-	core.uarch.executeCtx.valres = res;
+	ExecuteCtx.alures = res;
 
-	if (core.uarch.decodeCtx.setCC) {
+	if (DecodeCtx.setCC) {
 
 	}
 }
@@ -64,24 +64,32 @@ void vcu() {}
 void regfile(bool write) {
 	if (write) {
 		// Do not allow write to X30
-		if (core.uarch.decodeCtx.rd == 30) return;
+		if (DecodeCtx.rd == 30) return;
 
-		if (core.uarch.decodeCtx.rd == 31) {
+		if (DecodeCtx.rd == 31) {
 			core.SP = MemoryCtx.valout;
-		} else if (core.uarch.decodeCtx.rd != 30) {
-			core.GPR[core.uarch.decodeCtx.rd] =MemoryCtx.valout;
+		} else if (DecodeCtx.rd != 30) {
+			core.GPR[DecodeCtx.rd] =MemoryCtx.valout;
 		}
-		dLog(D_NONE, DSEV_INFO, "regfile::Writing 0x%x to register %d", core.uarch.memoryCtx.valout, core.uarch.decodeCtx.rd);
+		dLog(D_NONE, DSEV_INFO, "regfile::Writing 0x%x to register %d", MemoryCtx.valout, DecodeCtx.rd);
 		return;
 	}
 
-	if (core.uarch.decodeCtx.rs == 31) core.uarch.decodeCtx.vala = core.SP;
-	else core.uarch.decodeCtx.vala = core.GPR[core.uarch.decodeCtx.rs];
+	if (DecodeCtx.rs == 31) DecodeCtx.vala = core.SP;
+	else DecodeCtx.vala = core.GPR[DecodeCtx.rs];
 
-	if (core.uarch.decodeCtx.rr == 31) core.uarch.decodeCtx.valb = core.SP;
-	else core.uarch.decodeCtx.valb = core.GPR[core.uarch.decodeCtx.rr];
+	if (DecodeCtx.rr == 31) DecodeCtx.valb = core.SP;
+	else DecodeCtx.valb = core.GPR[DecodeCtx.rr];
 
-	dLog(D_NONE, DSEV_INFO, "regfile::Reading 0x%x from rs %d and 0x%x from rd %d", DecodeCtx.vala, DecodeCtx.rs, DecodeCtx.valb, DecodeCtx.rr);
+	// M types are mainly the ones to use VALEX since they support three registers
+	// VALEX used for the destination (for LD*)/source (for STR*)
+	// RS is always present as the base
+	// RR may be present as index
+	if (DecodeCtx.rd == 31) DecodeCtx.valex = core.SP;
+	else DecodeCtx.valex = core.GPR[DecodeCtx.rd];
+
+	dLog(D_NONE, DSEV_INFO, "regfile::Reading 0x%x from rs %d, 0x%x from rr %d, and 0x%x from rd %d", 
+			DecodeCtx.vala, DecodeCtx.rs, DecodeCtx.valb, DecodeCtx.rr, DecodeCtx.valex, DecodeCtx.rd);
 }
 
 void imem(uint32_t addr, uint32_t* ival, memerr_t* imemErr) {
@@ -94,14 +102,15 @@ void imem(uint32_t addr, uint32_t* ival, memerr_t* imemErr) {
 }
 
 void dmem(uint32_t addr, uint32_t* rval, uint32_t* wval, memerr_t* imemErr) {
-	if (core.uarch.decodeCtx.memSize == 0) return;
+	if (DecodeCtx.memSize == 0) return;
 
+	// Both cannot be null at the same time
 	if (!rval && !wval) { *imemErr = MEMERR_INTERNAL; return; }
 
 	int (*memRead)(uint32_t, memerr_t*);
 	memerr_t (*memWrite)(uint32_t, int);
 
-	switch (core.uarch.decodeCtx.memSize)	{
+	switch (DecodeCtx.memSize)	{
 		case 1:
 			memRead = &memReadByte;
 			memWrite = &memWriteByte;
