@@ -689,6 +689,25 @@ HANDLE_INSTR(handleM) {
 				moveLiteral = true;
 			}
 
+			// Remove any `#` in the expression
+			// Literally taken from assembler.c
+			bool hash = false;
+
+			if (strspn(expr, "+-*/|&^<>") == 0) hash = true;
+
+			char* tmp = expr;
+			while (*tmp != '\0') {
+				if (*tmp == '#') {
+					if (!hash) handleError(WARN, WARNING, "'#' prefix in expression %s ignored.\n", expr);
+
+					*tmp = ' ';
+					hash = true;
+				}
+
+				tmp++;
+			}
+
+
 			bool evald = true;
 			uint32_t imm = eval(expr, symbTable, &evald);
 			// Note that if eval returns false, it either means a symbol is not found yet or that the expression

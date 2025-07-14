@@ -40,7 +40,8 @@ static char* VALID_INSTRUCTIONS[] = {
 	"b",
 
 	// S-Type
-	"syscall", "hlt",
+	"syscall", "hlt", "si", "di", "iret", "ldir",
+	"mvcstr", "ldcstr"
 
 	// F-Type
 
