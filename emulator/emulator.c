@@ -40,7 +40,8 @@ static void handleLoadSignal(signal_t* emuShellSig) {
 	uint32_t userEntry = loadBinary(filename, emulatedMemory);
 
 	// Place entry point at the top of kernel stack
-	*((uint8_t*)emulatedMemory + 0xFFFFFFFB) = userEntry;
+	// For some reason, the pointer needs to be type uint32 so it writes all of the bits of the entry
+	*(uint32_t*)((uint8_t*)emulatedMemory + 0xFFFFFFFB) = userEntry;
 
 	// Place arv/argc in user stack
 	// TODO later
@@ -143,7 +144,7 @@ static SigMem* createSignalMemory() {
 
 	close(fd);
 
-	dLog(D_NONE, DSEV_INFO, "Signal Memory created at %p", _sigMem);
+	dDebug(DB_BASIC, "Signal Memory created at %p", _sigMem);
 
 	SigMem* sigMem = (SigMem*) _sigMem;
 
@@ -160,7 +161,7 @@ static SigMem* createSignalMemory() {
 
 	close(fd);
 
-	dLog(D_NONE, DSEV_INFO, "Signal Heap created at %p!", _sigHeap);
+	dDebug(DB_BASIC, "Signal Heap created at %p!", _sigHeap);
 
 	sigMem->metadata.heap[EMU_HEAP] = _sigHeap;
 
