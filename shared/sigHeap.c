@@ -1,6 +1,5 @@
 #include <stdlib.h>
-#include <stdbool.h>
-#include <stdint.h>
+#include <string.h>
 
 #include "sigHeap.h"
 
@@ -46,8 +45,7 @@ typedef struct HeapBlock {
 #define PTR(x) ((char*)(x))
 
 static void* signalHeap;
-static bool initialized = false;
-static hblock_t* START;
+static hblock_t START;
 
 
 static void setupBlock(hblock_t* block, sigsize_t size, bool alloc) {
@@ -65,7 +63,7 @@ static void setupBlock(hblock_t* block, sigsize_t size, bool alloc) {
  * @return 
  */
 static hblock_t* findBlock(sigsize_t size) {
-	hblock_t* currBlock = START->addr.next;
+	hblock_t* currBlock = (&START)->addr.next;
 	hblock_t* currBest = NULL;
 
 	sigsize_t currDiff = 0, currMinDiff = UINT32_MAX;
@@ -100,7 +98,7 @@ static hblock_t* truncate(hblock_t* block, sigsize_t size) {
 
 
 	// Get the previous block for linking purposes
-	hblock_t* prev = START;
+	hblock_t* prev = (&START);
 	while (prev->addr.next != block) prev = prev->addr.next;
 
 	// If block to allocate takes up everything, cannot split
@@ -113,9 +111,12 @@ static hblock_t* truncate(hblock_t* block, sigsize_t size) {
 		setupBlock(temp, newFreeBlockSize-METADATA_SIZE, false);
 
 		prev->addr.next = temp;
-	} // else cannot split, just link
-	// Only link previous to next, aka removing from free list
-	prev->addr.next = block->addr.next;
+		temp->addr.next = block->addr.next;
+	} else {
+ 		// else cannot split, just link
+		// Only link previous to next, aka removing from free list
+		prev->addr.next = block->addr.next;
+	}
 
 	setupBlock(block, size, true);
 
@@ -123,20 +124,17 @@ static hblock_t* truncate(hblock_t* block, sigsize_t size) {
 }
 
 
-void sinit(void* _sigHeapPtr) {
-	if (!initialized) {
-		// Set up the global starter block
-		// No data in this so size is the metadata size itself
-		setupBlock(START, METADATA_SIZE, false);
+void sinit(void* _sigHeapPtr, bool new) {
+	signalHeap = _sigHeapPtr;
+
+	// Set up the global starter block
+	// No data in this so size is the metadata size itself
+	setupBlock(&START, METADATA_SIZE, false);
+	if (new) {
 		// Set up the actual heap
 		setupBlock((hblock_t*) signalHeap, _PAGESIZE - METADATA_SIZE, false);
-
-		START->addr.next = signalHeap;
-
-		initialized = true;
 	}
-
-	signalHeap = _sigHeapPtr;
+	(&START)->addr.next = signalHeap;
 }
 
 void* smalloc(sigsize_t size) {
@@ -174,7 +172,7 @@ void sfree(void* ptr) {
 	// TODO: Better error indicating for memory freeing
 
 	// Re-link, aka place it back in free list
-	hblock_t* curr = START->addr.next;
+	hblock_t* curr = (&START)->addr.next;
 	hblock_t* temp = NULL;
 
 	// Iterate until next block of current is past the block to free
@@ -188,4 +186,33 @@ void sfree(void* ptr) {
 	blockToFree->flags = 0b0;
 
 	// merge(blockToFree);
+}
+
+
+uint32_t ptrToOffset(void* ptr, bool* valid) {
+	// Make sure the pointer is within bounds
+	if (ptr <= signalHeap || ptr >= (signalHeap+_PAGESIZE)) *valid = false;
+
+	// Offset is from the start of the heap to where the pointer is at
+	uint32_t offset = ((char*) ptr) - ((char*) signalHeap);
+
+	return offset;
+}
+
+void* offsetToPtr(uint32_t offset) {
+
+	char* ptr = ((char*) signalHeap) + offset;
+
+	return (void*) ptr;
+}
+
+
+char* sstrdup(const char* src) {
+	size_t len = strlen(src) + 1;
+	char* dest = smalloc(len);
+	if (!dest) return NULL;
+	
+	strcpy(dest, src);
+
+	return dest;
 }
