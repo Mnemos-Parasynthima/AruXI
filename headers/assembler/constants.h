@@ -55,7 +55,7 @@ static char* VALID_INSTRUCTIONS[] = {
 #define Bu_TYPE_IDX 31
 #define Bc_TYPE_IDX 33
 #define S_TYPE_IDX 34
-#define F_TYPE_IDX 36
+#define F_TYPE_IDX 42
 
 enum Instructions {
 	ADD, ADDS, SUB, SUBS,
