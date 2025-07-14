@@ -10,36 +10,54 @@
 
 .text
 _init:
-	ld sp, =STACK_LIMIT
-
+	% the init section is to take a total of 8 4-bytes (for now)
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
 	nop
 	hlt
 
 
 _usrSetup:
-	% sp contains at the limit where argv stops (last argument) placed by the loader/emulator
+	% loader/emulator placed user entry point at the very bottom of the stack (aka at the limit)
+	% however it did not update the sp (cannot even do it), but it is to be guaranteed that
+	% it is guaranteed to be at STACK_LIMIT-4
+	mv sp, STACK_LIMIT-#0x4
 
-	ld x0, =STACK_LIMIT-0x4
-	ld x1, [x0] % get the user entry point where emulator loader has placed it
-
-	ld x2, [x0, #-0x4] % get argc
-
-	% argv
-
-
-	% save x1, x2
-	sub sp, sp, #8
-	str x1, [sp, #0x4] % save entry point
-	str x2, [sp] % save argc
 
 	call _setPS
 
-	% restore x1, x2
-	ld c0, [sp, #0x4] % restore x2 (argc)
-	ld x0, [sp] % restore x1 (entry point)
-	add sp, sp, #8
+	% save kernel sp
+	ld c0, =KERN_STATE_SP
+	str sp, [c0]
 
+	% a call is to be done but the address is known in memory, move it to a reg
+	ld c0, [sp]
+	% c0 contains the entry point, before a simulated call, set the link register so
+	% on user return, it comes back here
+	ldir c1 % get the IR contents
+	% IR is for the following instruction as on fetch after ldir, the advancing by 4 is done already
+	add c1, c1, #8
+	% save the instruction after ubr
+	mv lr, c1
 	ubr c0
+	% restore sp
+	ld sp, KERN_STATE_SP
+	% return value of user program is in xr
+	sub sp, sp, #4
+	str xr, [sp]
+
+	% remove PS
+	call _destroyPS
+
+	ld xr, [sp]
+	add sp, sp, #4
+
+	hlt
+
 
 _setPS:
 	% set up the process state
@@ -72,6 +90,21 @@ _setPS:
 	ret
 
 
+_destroyPS:
+	% destroy the process state
+	% basically just free the memory from pointer
+	ld a0, =KERN_PS % get the stored PS pointer
+	mv a1, #298
+	call _kfree
+
+	% "null" KERN_PS
+	str xz, [a0]
+
+	ret
+
+
+%% HEAP ALLOCATING %%
+
 _kmalloc:
 	% simple heap bump allocator
 	% void* _kmalloc(uint32_t size)
@@ -80,7 +113,8 @@ _kmalloc:
 
 	ld x10, KERN_HEAPTOP
 	mv xr, x10 % have the previous heaptop be the return
-	% get the actual address
+
+	% get the actual address to update it by size
 	ld x10, =KERN_HEAPTOP
 	ld x11, [x10]
 	add x11, x11, a0
@@ -88,10 +122,25 @@ _kmalloc:
 
 	ret
 
+_kfree:
+	% simple free-er
+	% void _kfree(uint32_t* ptr, uint32_t size)
+	% a0: ptr
+	% a1: size (temporary until more structured memory allocation)
 
+	ld c0, =KERN_HEAPTOP
+	ld c1, [c0]
+	sub c1, c1, a1
+	str c1, [c0]
+
+	ret
 
 
 
 .data
 	KERN_HEAPTOP: .word HEAP_START
 	KERN_PS: .word 0x0
+
+	KERN_STATE:
+		% Saved sp of the kernel stack to return after user program
+		KERN_STATE_SP: .word STACK_LIMIT 
