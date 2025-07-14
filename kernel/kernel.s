@@ -25,25 +25,36 @@ _usrSetup:
 	% loader/emulator placed user entry point at the very bottom of the stack (aka at the limit)
 	% however it did not update the sp (cannot even do it), but it is to be guaranteed that
 	% it is guaranteed to be at STACK_LIMIT-4
-	mv sp, STACK_LIMIT-#0x4
+	ld sp, =STACK_LIMIT-#0x4
 
 
 	call _setPS
 
 	% save kernel sp
-	ld c0, =KERN_STATE_SP
-	str sp, [c0]
+	ld c1, =KERN_STATE_SP
+	str sp, [c1]
 
-	% a call is to be done but the address is known in memory, move it to a reg
-	ld c0, [sp]
-	% c0 contains the entry point, before a simulated call, set the link register so
+	% a call is to be done but the address is known in stack, move it to a reg
+	ld c1, [sp]
+	% c1 contains the entry point, before a simulated call, set the link register so
 	% on user return, it comes back here
-	ldir c1 % get the IR contents
+	ldir c2 % get the IR contents
 	% IR is for the following instruction as on fetch after ldir, the advancing by 4 is done already
-	add c1, c1, #8
+	add c2, c2, #8
 	% save the instruction after ubr
-	mv lr, c1
-	ubr c0
+	mv lr, c2
+
+	% set the user stack pointer
+	ld sp, =USR_STACK_START-#0x4
+
+	% switch to user mode, this needs to be done right before the call
+	ldcstr x10
+	mv x11, #0x1
+	lsl x11, x11, #9 % PRIV flag is in bit 9
+	or x10, x10, x11
+	mvcstr x10
+	ubr c1 % run user program
+
 	% restore sp
 	ld sp, KERN_STATE_SP
 	% return value of user program is in xr
@@ -77,7 +88,7 @@ _setPS:
 	% save it
 	ld c1, =KERN_PS
 	str xr, [c1]
-	
+
 	mv c0, #0x0 % ignore PIDs for now
 	str xz, [xr]
 	str xz, [xr, #0x1] % no threads for now
