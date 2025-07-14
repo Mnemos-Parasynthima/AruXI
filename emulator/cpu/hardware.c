@@ -62,14 +62,46 @@ void fpu() {}
 void vcu() {}
 
 void regfile(bool write) {
-	if (write) {
+	const int COMMIT_PRIV = 0b1<<15;
+	static uint32_t setCSTR;
+
+	if ((setCSTR >> 15) == 0b1) {
+		// Commit CSTR, ignoring last bit
+		core.CSTR = setCSTR & ~COMMIT_PRIV;
+		setCSTR = 0x00000000; // reset
+	}
+
+
+	if (write) {	
 		// Do not allow write to X30
 		if (DecodeCtx.rd == 30) return;
+
+		// Special registers
+		if (FetchCtx.opcode == OP_LDIR) {
+			// MOVE THIS TO READ FROM REGFILE
+			// THIS IS HERE TO EVADE THE ALU FROM RETURNING 0 FOR VALOUT
+			MemoryCtx.valout = core.IR;
+			dLog(D_NONE, DSEV_INFO, "regfile(special)::Writing from IR");
+		} else if (FetchCtx.opcode == OP_LDCSTR) {
+			MemoryCtx.valout = core.CSTR;
+			dLog(D_NONE, DSEV_INFO, "regfile(special)::Writing from CSTR");
+		} else if (FetchCtx.opcode == OP_MVCSTR) {
+			// core.CSTR = MemoryCtx.valout;
+			// dLog(D_NONE, DSEV_INFO, "regfile(special)::Writing 0x%x to CSTR", MemoryCtx.valout);
+			// Special attention!!!
+			// Delay the writing of CSTR mainly for the PRIV bit so the next kernel instruction is allowed to run
+			// Considering only a few bits of the CSTR are used, the msb can be used to indicate whether to write it or not
+			// Basically a boolean "writebackCSTR?"
+			// This writeback is done regardless if there is a normal writeback or not in order to commit to the next instruction
+			// The first step is on MVCSTR cycle, indicating to commit and set it
+			setCSTR = MemoryCtx.valout | COMMIT_PRIV;
+			return;
+		}
 
 		if (DecodeCtx.rd == 31) {
 			core.SP = MemoryCtx.valout;
 		} else if (DecodeCtx.rd != 30) {
-			core.GPR[DecodeCtx.rd] =MemoryCtx.valout;
+			core.GPR[DecodeCtx.rd] = MemoryCtx.valout;
 		}
 		dLog(D_NONE, DSEV_INFO, "regfile::Writing 0x%x to register %d", MemoryCtx.valout, DecodeCtx.rd);
 		return;
@@ -87,6 +119,11 @@ void regfile(bool write) {
 	// RR may be present as index
 	if (DecodeCtx.rd == 31) DecodeCtx.valex = core.SP;
 	else DecodeCtx.valex = core.GPR[DecodeCtx.rd];
+
+	// Special register access
+	// if (FetchCtx.opcode == OP_LDIR) {
+
+	// }
 
 	dLog(D_NONE, DSEV_INFO, "regfile::Reading 0x%x from rs %d, 0x%x from rr %d, and 0x%x from rd %d", 
 			DecodeCtx.vala, DecodeCtx.rs, DecodeCtx.valb, DecodeCtx.rr, DecodeCtx.valex, DecodeCtx.rd);

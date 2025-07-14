@@ -34,6 +34,9 @@ static void fault() {
 
 
 static void fetch() {
+	// Instructions cannot be 0x00000000
+	FetchCtx.instrbits = 0x0;
+
 	memerr_t err;
 	dLog(D_NONE, DSEV_INFO, "fetch::Fetching from 0x%x...", core.IR);
 	imem(core.IR, &FetchCtx.instrbits, &err);
@@ -44,7 +47,16 @@ static void fetch() {
 		if (GET_PRIV(core.CSTR) == 0b1) {
 			// user code attempted to access elsewhere, run EVT
 			// TODO: Need to work out EVT stuff
-			dLog(D_NONE, DSEV_WARN, "User code attempted to access outside of permissible range!");
+			switch (err) {
+				case MEMERR_USER_SECT_READ:
+					dLog(D_NONE, DSEV_WARN, "User code attempted to access outside of its Process Address Space or System Libraries");
+					break;
+				case MEMERR_USER_OVERREAD:
+					dLog(D_NONE, DSEV_WARN, "User code attempted to overread from an allowed address");
+					break;
+				default:
+					break;
+			}
 		} else {
 			dLog(D_NONE, DSEV_WARN, "Kernel code attempted to access outside of permissible range!");
 			fault();
@@ -79,7 +91,12 @@ void extractImm() {
 	} else if (opcode == OP_B) {
 		imm = simm19; // Bc-types
 		type = BC_TYPE;
-	}
+	//} else if (DecodeCtx.iType == S_TYPE) {
+		// S-types don't have an imm as of now
+		// Since iType is reset, keep it
+		// type = S_TYPE;
+		// Orrr just have this occur before checking for S types
+	} else if (opcode == OP_UBR) type = BU_TYPE;
 
 	DecodeCtx.imm = imm;
 	DecodeCtx.iType = type;
@@ -115,11 +132,8 @@ void extractRegs() {
 			// rr meaning the index register (gets added to base)
 		}
 	} else if (type == S_TYPE) {
-		if (opcode == OP_MVCSTR) {
-			rs = _rsIS;
-		} else if (opcode == OP_LDIR || opcode == OP_LDCSTR) {
-			rd = _rd;
-		}
+		if (opcode == OP_MVCSTR) rs = _rsIS;
+		else if (opcode == OP_LDIR || opcode == OP_LDCSTR) rd = _rd;
 	}
 
 	DecodeCtx.rd = rd;
@@ -219,8 +233,8 @@ static void decode() {
 	// TODO: EVT for user code, kill for kernel code
 	// Invalid instruction
 	if (code == OP_ERROR) {
+		dLog(D_NONE, DSEV_WARN, "Invalid instruction: 0x%x!", opcode);
 		if (GET_PRIV(core.CSTR) == 0b0) { // Kill for kernel code
-			dLog(D_NONE, DSEV_WARN, "Invalid instruction: 0x%x!", opcode);
 			fault();
 		} else { // EVT for user code
 
@@ -244,6 +258,9 @@ static void decode() {
 			DecodeCtx.memSize = 0;
 			break;
 	}
+
+	extractImm();
+	dLog(D_NONE, DSEV_INFO, "decode::Imm: 0x%x", DecodeCtx.imm);
 
 	// Subdivide for S-types
 	if (code == OP_SYS) {
@@ -284,16 +301,14 @@ static void decode() {
 		FetchCtx.opcode = subcode;
 	}
 
-	extractImm();
-	dLog(D_NONE, DSEV_INFO, "decode::Imm: 0x%x", DecodeCtx.imm);
-
 	extractRegs();
 	dLog(D_NONE, DSEV_INFO, "decode::Rd: %d; Rs: %d; Rr: %d", DecodeCtx.rd, DecodeCtx.rs, DecodeCtx.rr);
 
 	DecodeCtx.regwrite = false;
 	DecodeCtx.memwrite = false;
 
-	if (DecodeCtx.iType == I_TYPE || DecodeCtx.iType == R_TYPE || (FetchCtx.opcode >= OP_LD && FetchCtx.opcode <= OP_LDHZ) || FetchCtx.opcode == OP_CALL) DecodeCtx.regwrite = true;
+	if (DecodeCtx.iType == I_TYPE || DecodeCtx.iType == R_TYPE || (FetchCtx.opcode >= OP_LD && FetchCtx.opcode <= OP_LDHZ) || 
+		FetchCtx.opcode == OP_CALL || (FetchCtx.opcode >= OP_LDIR && FetchCtx.opcode <= OP_LDCSTR)) DecodeCtx.regwrite = true;
 	if (FetchCtx.opcode >= OP_LD && FetchCtx.opcode <= OP_LDHZ) DecodeCtx.memwrite = true;
 
 	if (FetchCtx.opcode >= OP_STR && FetchCtx.opcode <= OP_STRH) MemoryCtx.write = true;
@@ -333,6 +348,11 @@ static void execute() {
 	dLog(D_NONE, DSEV_INFO, "execute::ALU Val a: 0x%x; ALU Val b: 0x%x;", ExecuteCtx.aluVala, ExecuteCtx.aluValb);
 
 	alu();
+
+	// Either MVCSTR has ALU_ADD that adds the contents of rs and 0 so it maintins rs in alures so it can be written to CSTR
+	// Or it is overwritten with rs (vala)
+	if (FetchCtx.opcode == OP_MVCSTR) ExecuteCtx.alures = DecodeCtx.vala;
+
 	dLog(D_NONE, DSEV_INFO, "execute::Val res: 0x%x", ExecuteCtx.alures);
 
 	if (FetchCtx.opcode >= OP_STR && FetchCtx.opcode <= OP_STRH) MemoryCtx.valmem = DecodeCtx.valex;
@@ -423,6 +443,23 @@ void initCore() {
 	memset(&core.uarch, 0x0, sizeof(InstrCtx));
 }
 
+void viewCoreState() {
+	dLog(D_NONE, DSEV_INFO, "Core state:\n\tIR: 0x%x\n\tSP: 0x%x\n\tCSTR: 0x%x\n\tRegisters:\n\
+\tX0/XR/A0: 0x%x\n\tX1/A1: 0x%x\n\tX2/A2: 0x%x\n\tX3/A3: 0x%x\n\tX4/A4: 0x%x\n\tX5/A5: 0x%x\n\
+\tX6/A6: 0x%x\n\tX7/A7: 0x%x\n\tX8/A8: 0x%x\n\tX9/A9: 0x%x\n\tX10: 0x%x\n\tX11: 0x%x\n\
+\tX12/C0: 0x%x\n\tX13/C1: 0x%x\n\tX14/C2: 0x%x\n\tX15/C3: 0x%x\n\tX16/C4: 0x%x\n\tX17/S0: 0x%x\n\
+\tX18/S1: 0x%x\n\tX19/S2: 0x%x\n\tX20/S3: 0x%x\n\tX21/S4: 0x%x\n\tX22/S5: 0x%x\n\tX23/S6: 0x%x\n\
+\tX24/S7: 0x%x\n\tX25/S8: 0x%x\n\tX26/S9: 0x%x\n\tX27/S10: 0x%x\n\tX28/LR: 0x%x\n\tX9/SB: 0x%x\n\n",
+		core.IR, core.SP, core.CSTR, 
+		core.GPR[0], core.GPR[1], core.GPR[2], core.GPR[3], core.GPR[4], core.GPR[5],
+		core.GPR[6], core.GPR[7], core.GPR[8], core.GPR[9], core.GPR[10], core.GPR[11],
+		core.GPR[12], core.GPR[13], core.GPR[14], core.GPR[15], core.GPR[16], core.GPR[17],
+		core.GPR[18], core.GPR[19], core.GPR[20], core.GPR[21], core.GPR[22], core.GPR[23],
+		core.GPR[24], core.GPR[25], core.GPR[26], core.GPR[27], core.GPR[28], core.GPR[29]);
+
+	fflush(stdout);
+}
+
 void* runCore(void* _) {
 	dLog(D_NONE, DSEV_INFO, "Executing core thread...");
 	core.status = STAT_RUNNING;
@@ -438,6 +475,11 @@ void* runCore(void* _) {
 			execute();
 			memory();
 			runningCycles++;
+
+			// viewCoreState();
+
+			// In case of an infinite loop or something, limit how much it can cycle for
+			if (runningCycles > 85) core.status = STAT_HLT;
 
 			// When needed, add condition on running cycles
 			if (core.status == STAT_HLT) {
@@ -462,8 +504,4 @@ void* runCore(void* _) {
 	}
 
 	return NULL;
-}
-
-void viewCoreState() {
-
 }
