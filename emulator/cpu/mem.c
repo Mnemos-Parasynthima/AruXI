@@ -52,6 +52,7 @@ uint32_t _memRead(uint32_t addr, unsigned width, memerr_t* memerr) {
 	for (int i = width-2; i >= 0; i--) {
 		// Check that addr+i is not crossing boundaries
 		uint32_t newaddr = addr+i;
+		dDebug(DB_DETAIL, "Reading from new address 0x%x", newaddr);
 		if (GET_PRIV(core.CSTR) == 0b0) {
 			// Began in sys libs, crossing over to reserved or EVT
 			bool overreadSyslib = (newaddr == SYS_LIB_LIMIT+1) || (newaddr == SYS_LIB-1);
@@ -63,7 +64,7 @@ uint32_t _memRead(uint32_t addr, unsigned width, memerr_t* memerr) {
 			// Began in heap, crossing over to safeguard
 			bool overreadHeap = (newaddr == USER_HEAP_LIMIT+1);
 			// Began in stack, crossing over to safeguard or to unused
-			bool overreadStack = (newaddr == USER_STACK-1) || (USER_STACK_LIMIT+1);
+			bool overreadStack = (newaddr == USER_STACK-1) || (newaddr == USER_STACK_LIMIT+1);
 			// Began in bss, crossing over to buffer
 			bool overreadBss = (newaddr == USER_START-1);
 			// Began in sys libs, crossing over to reserved or EVT
@@ -71,7 +72,6 @@ uint32_t _memRead(uint32_t addr, unsigned width, memerr_t* memerr) {
 
 			if (overreadHeap || overreadStack || overreadBss || overreadSyslib) { *memerr = MEMERR_USER_OVERREAD; return val; }
 		}
-		dDebug(DB_DETAIL, "Reading from new address 0x%x", newaddr);
 		val = (val<<8) + (*(emMem + (addr+i)));
 		dDebug(DB_DETAIL, "Byte 0x%x -> 0x%x", *(emMem+newaddr), val);
 	}
