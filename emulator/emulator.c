@@ -35,26 +35,19 @@ void* emulatedMemory;
  */
 static void handleLoadSignal(signal_t* emuShellSig) {
 	write(STDOUT_FILENO, "handleLoadSignal\n", 17);
-	char* filename = emuShellSig->metadata.loadprog.program;
+	char* filename = (char*) offsetToPtr(emuShellSig->metadata.loadprog.programOffset);
 
-	char buff[32];
-	sprintf(buff, "filename PTR: %p\n", filename);
-	write(STDOUT_FILENO, buff, 29);
-
-	write(STDOUT_FILENO, "Loading binary\n", 15);
 	uint32_t userEntry = loadBinary(filename, emulatedMemory);
-	write(STDOUT_FILENO, "Binary loaded\n", 14);
 
 	// Place entry point at the top of kernel stack
 	*((uint8_t*)emulatedMemory + 0xFFFFFFFB) = userEntry;
-	write(STDOUT_FILENO, "Entry point written\n", 20);
 
 	// Place arv/argc in user stack
 	// TODO later
 
 	// Ack it so shell can know
 	emuShellSig->ackMask = SIG_SET(emuShellSig->ackMask, emSIG_LOAD_IDX);
-	write(STDOUT_FILENO, "Acked\n", 6);
+	// write(STDOUT_FILENO, "Acked\n", 6);
 }
 
 /**
@@ -163,7 +156,7 @@ static SigMem* createSignalMemory() {
 	if (r == -1) dFatal(D_ERR_INTERNAL, "Could not ftruncate!");
 
 	void* _sigHeap = mmap(NULL, PAGESIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-	if (_sigHeap = MAP_FAILED) dFatal(D_ERR_MEM, "Could not mmap signal heap!");
+	if (_sigHeap == MAP_FAILED) dFatal(D_ERR_MEM, "Could not mmap signal heap!");
 
 	close(fd);
 
@@ -171,7 +164,7 @@ static SigMem* createSignalMemory() {
 
 	sigMem->metadata.heap[EMU_HEAP] = _sigHeap;
 
-	sinit(_sigHeap);
+	sinit(_sigHeap, true);
 
 	return sigMem;
 }

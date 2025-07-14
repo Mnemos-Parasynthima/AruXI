@@ -126,11 +126,12 @@ void showSigState(int SIG, bool showMetadata, bool showPayload) {
 		if (loadInt) {
 			loadprog_md metadata = signal->metadata.loadprog;
 			printf("\tLOAD Metadata:\n");
-			printf("\t .Program = %s\n", metadata.program);
+			printf("\t .Program = %s\n",  (char*) offsetToPtr(metadata.programOffset));
 			printf("\t .Argc = %d\n", metadata.argc);
 			printf("\t .Argv = {");
-			for (int i = 0; i < metadata.argc-1; i++) printf("%s, ", metadata.argv[i]);
-			printf("%s}\n", metadata.argv[metadata.argc-1]);
+			char** argv = (char**) offsetToPtr(metadata.argvOffset);
+			for (int i = 0; i < metadata.argc-1; i++) printf("%s, ", argv[i]);
+			printf("%s}\n", argv[metadata.argc-1]);
 		}
 	}
 }
@@ -376,10 +377,10 @@ action_t runProgram(int argc, char** _argv) {
 		return SH_ERR;
 	}
 	for (int i = 0; i < argc; i++) {
-		argv[i] = strdup(_argv[i]);
+		argv[i] = sstrdup(_argv[i]);
 		if (!argv[i]) {
 			dLog(D_ERR_MEM, DSEV_WARN, "Could not allocate memory for argv[i]. Will not run program.");
-			free(argv);
+			sfree(argv);
 			return SH_ERR;
 		}
 	}
@@ -419,13 +420,21 @@ action_t runProgram(int argc, char** _argv) {
 		goto ERR;
 	}
 
+	bool valid = true;
+
 	sigMem->metadata.signalType = EMU_SHELL_SIG;
 	signal_t* shellEmuSignal = GET_SIGNAL(sigMem->signals, EMU_SHELL_SIG);
 	loadprog_md metadata = {
-		.program = program,
+		.programOffset = ptrToOffset(program, &valid),
 		.argc = argc,
-		.argv = argv
+		.argvOffset = ptrToOffset(argv, &valid)
 	};
+
+	if (!valid) {
+		dLog(D_ERR_MEM, DSEV_WARN, "Pointer is not within shared heap.");
+		goto ERR;
+	}
+
 	int ret = setLoadSignal(shellEmuSignal, &metadata);
 	if (ret == -1) dFatal(D_ERR_SIGNAL, "No access for load signal!");
 
@@ -452,9 +461,9 @@ action_t runProgram(int argc, char** _argv) {
 
 	ERR:
 	for (int i = 0; i < argc; i++) {
-		free(argv[i]);
+		sfree(argv[i]);
 	}
-	free(argv);
+	sfree(argv);
 	return SH_ERR;
 }
 
@@ -504,7 +513,7 @@ int main(int argc, char const* argv[]) {
 
 	sigMem->metadata.heap[SHELL_HEAP] = _sigHeap;
 
-	sinit(_sigHeap);
+	sinit(_sigHeap, false);
 
 
 	redefineSignal(SIGINT, &handleSIGINT);

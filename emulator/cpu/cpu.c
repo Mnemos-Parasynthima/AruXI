@@ -18,6 +18,7 @@
 #include "diagnostics.h"
 #include "core.h"
 #include "mem.h"
+#include "sigHeap.h"
 
 core_t core;
 uint8_t* emMem;
@@ -229,7 +230,7 @@ int main(int argc, char const* argv[]) {
 
 	sigMem->metadata.heap[CPU_HEAP] = _sigHeap;
 
-	sinit(_sigHeap);
+	sinit(_sigHeap, false);
 
 
 	fd = shm_open(SHMEM_MEM, O_RDWR, 0666);

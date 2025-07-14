@@ -44,9 +44,9 @@
 #define CPU_HEAP 2
 
 typedef struct LoadprogMetadata {
-	char* program;
+	uint32_t programOffset;
 	int argc;
-	char** argv;
+	uint32_t argvOffset;
 } loadprog_md;
 
 typedef struct ExecprogMetadata {

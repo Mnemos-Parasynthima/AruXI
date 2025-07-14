@@ -111,11 +111,20 @@ int setLoadSignal(signal_t* signal, loadprog_md* metadata) {
 
 	// Free since pointers will be replaced
 	// `program` is part of `argv`
-	if (signal->metadata.loadprog.argv) sfree(signal->metadata.loadprog.argv);
+	if (signal->metadata.loadprog.argvOffset != 0) {
+		// Offset being 0 means that it is at the start of the heap, which is not possible as the start is the metadata
+		char** argv = offsetToPtr(signal->metadata.loadprog.argvOffset);
 
-	signal->metadata.loadprog.program = metadata->program;
+		for (int i = 0; i < signal->metadata.loadprog.argc; i++) {
+			sfree(argv[i]);
+		}
+
+		sfree(argv);
+	}
+
+	signal->metadata.loadprog.programOffset = metadata->programOffset;
 	signal->metadata.loadprog.argc = metadata->argc;
-	signal->metadata.loadprog.argv = metadata->argv;
+	signal->metadata.loadprog.argvOffset = metadata->argvOffset;
 
 	return SIG_GET(signal->interrupts, emSIG_LOAD_IDX);
 }

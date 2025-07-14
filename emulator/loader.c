@@ -20,13 +20,7 @@
 
 uint32_t loadBinary(char* filename, uint8_t* memory) {
 	int fd = open(filename, O_RDONLY);
-	if (fd < 0) {
-		write(STDERR_FILENO, "Could not open program ", 23);
-		// char buff[12];
-		// sprintf(buff, "`%s`\n", filename);
-		// write(STDERR_FILENO, buff, 12);
-		dFatal(D_ERR_IO, "Could not open program 0x`%x` (@`%p`)!", filename, filename);
-	}
+	if (fd < 0) dFatal(D_ERR_IO, "Could not open program 0x`%x` (@`%p`)!", filename, filename);
 
 
 	struct stat statBuffer;
@@ -101,7 +95,6 @@ uint32_t loadBinary(char* filename, uint8_t* memory) {
 			memcpy(textStart, binaryText, sectHdr->shSectSize);
 		}
 	}
-	write(STDOUT_FILENO, "Sections set\n", 13);
 
 	munmap(ptr, statBuffer.st_size);
 
