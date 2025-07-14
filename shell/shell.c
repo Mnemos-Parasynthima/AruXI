@@ -81,7 +81,6 @@ void handleSIGUSR1(int signum) {
 					munmap(sigMem, SIG_MEM_SIZE);
 					deleteEnv();
 					write(STDERR_FILENO, "Detected SIG_FAULT!\n", 20);
-					// ackFaultSignal(sig);
 					exit(1);
 					break;
 				// case emSIG_EXIT_IDX:
@@ -538,6 +537,9 @@ int main(int argc, char const* argv[]) {
 	uint8_t ackd = 0x0;
 	while (ackd != 0x1) ackd = SIG_GET(shellCPUSig->ackMask, emSIG_EXEC_IDX);
 
+	shellCPUSig->ackMask = SIG_CLR(shellCPUSig->ackMask, emSIG_EXEC_IDX);
+	shellCPUSig->interrupts = SIG_CLR(shellCPUSig->interrupts, emSIG_EXIT_IDX);
+
 	while (true) {
 		printf("%s", PROMPT);
 
@@ -556,10 +558,12 @@ int main(int argc, char const* argv[]) {
 		// Wait for the program to finish before continuing
 		if (act == SH_RUN) {
 			dDebug(DB_BASIC, "Waiting for program to exit...");
-			signal_t* sig = GET_SIGNAL(sigMem->signals, SHELL_CPU_SIG);
 			uint8_t exited = 0x0;
-			while (exited != 0x1) exited = SIG_GET(sig->interrupts, emSIG_EXIT_IDX);
+			while (exited != 0x1) exited = SIG_GET(shellCPUSig->interrupts, emSIG_EXIT_IDX);
 			dDebug(DB_BASIC, "Program has exited");
+			dLog(D_NONE, DSEV_INFO, "Program exited.");
+
+			shellCPUSig->interrupts = SIG_CLR(shellCPUSig->interrupts, emSIG_EXIT_IDX);
 		}
 
 		if (act == SH_EXIT)	break;

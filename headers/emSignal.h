@@ -31,6 +31,7 @@
 
 #define SIG_GET(bits, i) ((bits>>i) & 0x1)
 #define SIG_SET(bits, i) (bits | (1<<i))
+#define SIG_CLR(bits, i) (bits & ~(1<<i))
 
 #define UNIVERSAL_SIG 0
 #define EMU_SHELL_SIG 1
