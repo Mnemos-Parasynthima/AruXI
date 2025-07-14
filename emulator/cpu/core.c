@@ -256,18 +256,18 @@ static void decode() {
 			case 0b0011: subcode = OP_HLT; break;
 			case 0b0101: subcode = OP_SI; break;
 			case 0b0111: subcode = OP_DI; break;
-			case 0b1001: opcode = OP_IRET; break;
-			case 0b1011: opcode = OP_LDIR; break;
-			case 0b1101: opcode = OP_MVCSTR; break;
-			case 0b1111: opcode = OP_LDCSTR; break;
+			case 0b1001: subcode = OP_IRET; break;
+			case 0b1011: subcode = OP_LDIR; break;
+			case 0b1101: subcode = OP_MVCSTR; break;
+			case 0b1111: subcode = OP_LDCSTR; break;
 			default: break;
 		}
 
-		dLog(D_NONE, DSEV_INFO, "OP_SYS -> %s (opcode %d)", (code != OP_ERROR) ? istrmap[code] : "OP_ERROR", opcode);
+		dLog(D_NONE, DSEV_INFO, "OP_SYS -> %s (opcode %d)", (subcode != OP_ERROR) ? istrmap[subcode] : "OP_ERROR", subcode);
 
 		if (subcode == OP_ERROR) {
 			if (GET_PRIV(core.CSTR) == 0b0) { // Kill for kernel code
-				dLog(D_NONE, DSEV_WARN, "Invalid instruction: 0x%x!", opcode);
+				dLog(D_NONE, DSEV_WARN, "Invalid instruction: 0x%x!", subcode);
 				fault();
 			} else { // EVT for user code
 				
