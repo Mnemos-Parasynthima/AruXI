@@ -313,7 +313,7 @@ static void encodeS(instr_obj_t* instr) {
 	else if (strcasecmp(instrStr, VALID_INSTRUCTIONS[HLT]) == 0) subOpcode = 0b0011;
 	else if (strcasecmp(instrStr, VALID_INSTRUCTIONS[SI]) == 0) subOpcode = 0b0101;
 	else if (strcasecmp(instrStr, VALID_INSTRUCTIONS[DI]) == 0) subOpcode = 0b0111;
-	else if (strcasecmp(instrStr, VALID_INSTRUCTIONS[IRET]) == 0) subOpcode = 0b1001;
+	else if (strcasecmp(instrStr, VALID_INSTRUCTIONS[ERET]) == 0) subOpcode = 0b1001;
 	else if (strcasecmp(instrStr, VALID_INSTRUCTIONS[LDIR]) == 0) {
 		subOpcode = 0b1011;
 		rd = getRegisterEncoding(xs_xd);
@@ -388,6 +388,9 @@ static void encodeSpecial(InstructionStream* instrStream, int i, SymbolTable* sy
 void encode(InstructionStream* instrStream, SymbolTable* symbTable) {
 	for (int i = 0; i < instrStream->size; i++) {
 		instr_obj_t* instr = instrStream->instructions[i];
+
+		// Ignore the placeholders for EVT/IVT
+		if (instr->addr == 0x00000000) continue;
 
 		debug("Encoding %s\n", instr->instr);
 

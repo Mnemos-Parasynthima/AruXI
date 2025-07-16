@@ -11,7 +11,7 @@ extern bool kern;
 static void generateData(AOEFbin* bin, DataTable* dataTable) {
 	AOEFFSectHeader* dataHeader = NULL;
 
-	for (int i = 0; i < 4; i++) {
+	for (int i = 0; i < bin->header.hSectSize; i++) {
 		AOEFFSectHeader* sectHeader = &(bin->sectHdrTable[i]);
 		
 		if (strcmp(".data", sectHeader->shSectName) == 0) {
@@ -43,7 +43,7 @@ static void generateData(AOEFbin* bin, DataTable* dataTable) {
 static void generateConst(AOEFbin* bin, DataTable* dataTable) {
 	AOEFFSectHeader* constHeader = NULL;
 
-	for (int i = 0; i < 4; i++) {
+	for (int i = 0; i < bin->header.hSectSize; i++) {
 		AOEFFSectHeader* sectHeader = &(bin->sectHdrTable[i]);
 
 		if (strcmp(".const", sectHeader->shSectName) == 0) {
@@ -91,18 +91,105 @@ static void generateText(AOEFbin* bin, InstructionStream* instrStream) {
 
 	// The number of bytes taken by the text section can either be the number of instructions * 4 bytes
 	// or the total size in bytes using sectHeader
+	// Note that the size may be inflated due to the possible presence of the EVT instructions but those will be ignored
 	uint32_t* textSect = malloc(sizeof(uint32_t) * instrStream->size);
 	if (!textSect) handleError(ERR_MEM, FATAL, "Could not allocate memory for text section!\n");
 
 	uint32_t pos = 0x0;
+
+	// Skip EVT instructions
+	bool evtInstr = false;
+
 	for (int i = 0; i < instrStream->size; i++) {
 		instr_obj_t* instr = instrStream->instructions[i];
+
+		// Ignore placeholders
+		if (instr->addr == 0x00000000) { 
+			if (!evtInstr) evtInstr = true; // EVT start
+			else evtInstr = false; // EVT end
+			
+			continue;
+		}
+
+		if (evtInstr) continue;
 
 		textSect[pos] = instr->encoding;
 		pos++;
 	}
 
 	bin->_text = textSect;
+}
+
+static void generateEVT(AOEFbin* bin, InstructionStream* instrStream, DataTable* dataTable, uint32_t size) {
+	// Reconstructing the EVT is somewhat difficult considering two streams: instructions and data
+	// Have instrStream be the anchor as that is the clear one with the two buffer instructions before and after
+
+	// Skip until buffer
+	instr_obj_t* instr = NULL;
+	int iInstr;
+	for (iInstr = 0; iInstr < instrStream->size; iInstr++) {
+		instr = instrStream->instructions[iInstr];
+		if (instr->addr == 0x00000000) break; // initial buffer
+	}
+	iInstr++;
+
+	// Cannot know size of EVT without being indicated, kind of
+	// One possibility is having the size of evtEntries and having the assumption that the number of EVT header instructions
+	// are met, but no can do assumptions
+	uint8_t* evtSect = malloc(sizeof(uint8_t) * size);
+	if (!evtSect) handleError(ERR_MEM, FATAL, "Could not allocate memory for EVT section!\n");
+
+	uint32_t pos = 0x0;
+	bool endInstr = false;
+
+	for (int iData = 0; iData < dataTable->eSize; iData++) {
+		data_entry_t* entry = dataTable->evtEntries[iData];
+
+		// Compare addresses to know which one to write first
+		uint32_t instrAddr = instr->addr;
+		uint32_t dataAddr = entry->addr;
+
+		if (instrAddr < dataAddr) {
+			// Instruction came first, write it
+
+			// Since evtSect is in bytes but instr is in halfwords, cast it first
+			uint32_t* evtSect_Instr = (uint32_t*) evtSect;
+			evtSect_Instr[pos] = instr->encoding;
+			// Note that since array indexing is used, `pos` is not guaranteed to hit an aligment of 4
+			// Not our issue, the CPU will detect it
+			pos += 4;
+
+			// Get next instruction if not end
+			if (!endInstr) instr = instrStream->instructions[iInstr++];
+
+			// Make sure still within EVT bounds
+			if (instr->addr == 0x00000000) {
+				// Next (rather this) instruction marks ending, meaning the rest to be written is data
+				// Since the comparisons are made using addresses, set the address to be at a high address that it will go to data
+				instr->addr = 0xFFFFFFFF;
+				// Note that however this check only occurs once and for the instrucions after the ending marker, it will think they are part of the EVT
+				// To prevent so, just mark it so
+				endInstr = true;
+			}
+
+			// Since this is a for loop, advancing iData will be done naturally
+			// In this case that instr came first, data must remain
+			// Either this can be done in a while loop, I am too lazy to rewrite it
+			// Soooo
+			iData--;
+		} else {
+			// Data came first, write it
+			// Data may not always be in bytes, same issue as generateData
+			for (int b = 0; b < entry->size; b++) {
+				evtSect[pos] = entry->data.bytes[b];
+				pos++;
+			}
+
+			// Advancing to next data entry is done by the for loop
+		}
+	}
+
+	bin->_evt = evtSect;
 }
 
 static uint32_t getSymbolStringsSize(SymbolTable* symbTable) {
@@ -180,18 +267,20 @@ static void generateSectionHeaders(AOEFbin* bin, SectionTable* sectTable) {
 	uint32_t offset = baseOffset;
 
 	int sectIdx = 0;
-	for (int i = 0; i < 4; i++) {
+	for (int i = 0; i < 6; i++) {
 		section_entry_t entry = sectTable->entries[i];
 		if (!entry.present) continue;
 
-		sectHeaders[sectIdx].shSectSize = 0x0000;
-		sectHeaders[sectIdx].shSectOff = 0x0000;
+		sectHeaders[sectIdx].shSectSize = 0x00000000;
+		sectHeaders[sectIdx].shSectOff = 0x00000000;
 
 		char* sectName;
 		if (i == 0) sectName = ".data";
 		else if (i == 1) sectName = ".const";
 		else if (i == 2) sectName = ".bss";
-		else sectName = ".text";
+		else if (i == 3) sectName = ".text";
+		else if (i == 4) sectName = ".evt";
+		else sectName = ".ivt";
 
 		strncpy(sectHeaders[sectIdx].shSectName, sectName, 8);
 		sectHeaders[sectIdx].shSectSize = entry.size;
@@ -296,6 +385,8 @@ AOEFbin* generateBinary(InstructionStream* instrStream, SymbolTable* symbTable, 
 	generateConst(bin, dataTable);
 	bin->_text = NULL;
 	generateText(bin, instrStream);
+	bin->_evt = NULL;
+	generateEVT(bin, instrStream, dataTable, sectTable->entries[4].size);
 
 	return bin;
 }
@@ -316,9 +407,9 @@ void writeBinary(AOEFbin* bin, char* outbin) {
 	fwrite(&bin->header.hStrTabSize, sizeof(uint32_t), 1, outfile);
 
 	// Write tables
-	debug("secthdr[0]: %s %x %x\n", bin->sectHdrTable[0].shSectName, bin->sectHdrTable[0].shSectOff, bin->sectHdrTable[0].shSectSize);
-	debug("secthdr[1]: %s %x %x\n", bin->sectHdrTable[1].shSectName, bin->sectHdrTable[1].shSectOff, bin->sectHdrTable[1].shSectSize);
-	debug("secthdr[2]: %s %x %x\n", bin->sectHdrTable[2].shSectName, bin->sectHdrTable[2].shSectOff, bin->sectHdrTable[2].shSectSize);
+	// debug("secthdr[0]: %s %x %x\n", bin->sectHdrTable[0].shSectName, bin->sectHdrTable[0].shSectOff, bin->sectHdrTable[0].shSectSize);
+	// debug("secthdr[1]: %s %x %x\n", bin->sectHdrTable[1].shSectName, bin->sectHdrTable[1].shSectOff, bin->sectHdrTable[1].shSectSize);
+	// debug("secthdr[2]: %s %x %x\n", bin->sectHdrTable[2].shSectName, bin->sectHdrTable[2].shSectOff, bin->sectHdrTable[2].shSectSize);
 	fwrite(bin->sectHdrTable, sizeof(AOEFFSectHeader), bin->header.hSectSize, outfile);
 	fwrite(bin->symbEntTable, sizeof(AOEFFSymbEntry), bin->header.hSymbSize, outfile);
 	fwrite(bin->stringTable.stStrs, sizeof(char), bin->header.hStrTabSize, outfile);
@@ -327,19 +418,23 @@ void writeBinary(AOEFbin* bin, char* outbin) {
 	AOEFFSectHeader* dataHeader = NULL;
 	AOEFFSectHeader* constHeader = NULL;
 	AOEFFSectHeader* textHeader = NULL;
+	AOEFFSectHeader* evtHeader = NULL;
+	AOEFFSectHeader* ivtHeader = NULL;
 	AOEFFSectHeader* header = NULL;
 
-	for (int i = 0; i < 4; i++) {
+	for (int i = 0; i < bin->header.hSectSize; i++) {
 		header = &(bin->sectHdrTable[i]);
 
 		if (strcmp(".data", header->shSectName) == 0) dataHeader = header;
 		else if (strcmp(".const", header->shSectName) == 0) constHeader = header;
 		else if (strcmp(".text", header->shSectName) == 0) textHeader = header;
+		else if (strcmp(".evt", header->shSectName) == 0) evtHeader = header;
 	}
 
 	if (dataHeader && dataHeader->shSectSize != 0) fwrite(bin->_data, sizeof(uint8_t), dataHeader->shSectSize, outfile);
 	if (constHeader && constHeader->shSectSize != 0) fwrite(bin->_const, sizeof(uint8_t), constHeader->shSectSize, outfile);
 	if (textHeader && textHeader->shSectSize != 0) fwrite(bin->_text, sizeof(uint8_t), textHeader->shSectSize, outfile);
+	if (evtHeader && evtHeader->shSectSize != 0) fwrite(bin->_evt, sizeof(uint8_t), evtHeader->shSectSize, outfile);
 
 	debug("Wrote to %s!\n", outbin);
 
@@ -350,5 +445,6 @@ void writeBinary(AOEFbin* bin, char* outbin) {
 	free(bin->_data);
 	free(bin->_const);
 	free(bin->_text);
+	free(bin->_evt);
 	free(bin);
 }

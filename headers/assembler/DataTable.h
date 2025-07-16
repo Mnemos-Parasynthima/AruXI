@@ -31,12 +31,18 @@ typedef struct DataTable {
 	data_entry_t** bssEntries;
 	uint32_t bSize;
 	uint32_t bCapacity;
+
+	data_entry_t** evtEntries;
+	uint32_t eSize;
+	uint32_t eCapacity;
 } DataTable;
 
 typedef enum {
 	DATA_SECT,
 	CONST_SECT,
-	BSS_SECT
+	BSS_SECT,
+	EVT_SECT,
+	IVT_SECT
 } data_sect_type_t;
 
 

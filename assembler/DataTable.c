@@ -22,6 +22,10 @@ DataTable* initDataTable() {
 	dataTable->bSize = 0;
 	dataTable->bCapacity = 5;
 
+	dataTable->evtEntries = (data_entry_t**) malloc(sizeof(data_entry_t*) * 5);
+	dataTable->eSize = 0;
+	dataTable->eCapacity = 5;
+
 	return dataTable;
 }
 
@@ -57,6 +61,10 @@ void addDataEntry(DataTable* dataTable, data_entry_t* dataEntry, data_sect_type_
 		entries = &dataTable->bssEntries;
 		size = &dataTable->bSize;
 		capacity = &dataTable->bCapacity;
+	} else if (sectType == EVT_SECT) {
+		entries = &dataTable->evtEntries;
+		size = &dataTable->eSize;
+		capacity = &dataTable->eCapacity;
 	}	else return;
 
 	if (*size == *capacity) {
@@ -80,6 +88,7 @@ data_entry_t* getDataEntry(DataTable* dataTable, data_sect_type_t sectType, uint
 	if (sectType == DATA_SECT) { entries = dataTable->dataEntries; size = dataTable->dSize; }
 	else if (sectType == CONST_SECT) { entries = dataTable->constEntries; size = dataTable->cSize; }
 	else if (sectType == BSS_SECT) { entries = dataTable->bssEntries; size = dataTable->bSize; }
+	else if (sectType == EVT_SECT) { entries = dataTable->evtEntries; size = dataTable->eSize; }
 	else return NULL;
 
 
@@ -146,6 +155,12 @@ void displayDataTable(DataTable* dataTable) {
 		displayDataEntry(dataTable->bssEntries[i]);
 	}
 	debug("\n");
+
+	debug("\tEVT (%d entires)\n", dataTable->eSize);
+	for (int i = 0; i < dataTable->eSize; i++) {
+		displayDataEntry(dataTable->evtEntries[i]);
+	}
+	debug("\n");
 }
 
 void deleteDataTable(DataTable* dataTable) {
@@ -176,6 +191,15 @@ void deleteDataTable(DataTable* dataTable) {
 		free(entry);
 	}
 	free(dataTable->bssEntries);
+
+	for (int i = 0; i < dataTable->eSize; i++) {
+		data_entry_t* entry = dataTable->evtEntries[i];
+
+		free(entry->source);
+		free(entry->data.bytes);
+		free(entry);
+	}
+	free(dataTable->evtEntries);
 
 	free(dataTable);
 }

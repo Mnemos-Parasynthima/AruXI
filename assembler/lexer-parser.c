@@ -19,6 +19,8 @@ enum DirectiveIndex {
 	CONST,
 	BSS,
 	TEXT,
+	EVT,
+	IVT,
 	SET,
 	GLOB,
 	END,
@@ -54,7 +56,13 @@ static int validateDirective(char* directive) {
 static void validateSection(enum DirectiveIndex directiveType, uint8_t activeSection) {
 	// Valid types are found in the directives table, last column
 	switch (directiveType)	{
-		case STRING: case BYTE: case HWORD: case WORD: case FLOAT: case FILL:
+		case STRING: case FLOAT: case FILL:
+			if (activeSection == 4) {
+				handleError(ERR_DIRECTIVE_NOT_ALLOWED, FATAL, "Directive .%s is not allowed for evt section!\n", VALID_DIRECTIVES[directiveType]);
+			} else if (activeSection == 5) {
+				handleError(ERR_DIRECTIVE_NOT_ALLOWED, FATAL, "Directive .%s is not allowed for ivt section!\n", VALID_DIRECTIVES[directiveType]);
+			}
+		case BYTE: case HWORD: case WORD:
 			if (activeSection == 2) {
 				handleError(ERR_DIRECTIVE_NOT_ALLOWED, FATAL, "Directive .%s is not allowed for bss section!\n", VALID_DIRECTIVES[directiveType]);
 			} else if (activeSection == 3) {
@@ -62,7 +70,9 @@ static void validateSection(enum DirectiveIndex directiveType, uint8_t activeSec
 			}
 			break;
 		case ZERO:
-			if (activeSection != 2) handleError(WARN, WARNING, "Consider using .zero in bss!\n");
+			if (activeSection != 2 && (activeSection != 4 || activeSection != 5)) handleError(WARN, WARNING, "Consider using .zero in bss!\n");
+			else if (activeSection == 4) handleError(ERR_DIRECTIVE_NOT_ALLOWED, FATAL, ".zero is not allowed in evt section!\n");
+			else if (activeSection == 5) handleError(ERR_DIRECTIVE_NOT_ALLOWED, FATAL, ".zero is not allowed in ivt section!\n");
 			break;
 		default: break;
 	}
@@ -413,6 +423,8 @@ void handleDirective(SymbolTable* symbTable, SectionTable* sectTable, DataTable*
 		case CONST: sectTable->activeSection = 1; sectTable->entries[1].present = true; break;
 		case BSS: sectTable->activeSection = 2; sectTable->entries[2].present = true; break;
 		case TEXT: sectTable->activeSection = 3; sectTable->entries[3].present = true; break;
+		case EVT: sectTable->activeSection = 4; sectTable->entries[4].present = true; break;
+		case IVT: sectTable->activeSection = 5; sectTable->entries[5].present = true; break;
 
 		case SET: setDirective(symbTable, args, sectTable->activeSection); break;
 		case GLOB: globDirective(symbTable, args, sectTable->activeSection); break;

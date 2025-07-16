@@ -71,6 +71,8 @@ typedef struct AOEF_BIN {
 	uint8_t* _data;
 	uint8_t* _const;
 	uint32_t* _text;
+	uint8_t* _evt;
+	// uint8_t* _ivt;
 } AOEFbin;
 
 

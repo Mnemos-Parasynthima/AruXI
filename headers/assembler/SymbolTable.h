@@ -21,9 +21,9 @@ typedef struct SymbolTable {
 
 /**
 	| 31-8 | 7   | 6   | 5   | 4   | 3   | 2   | 1   | 0   |
-	| x    | E   | -   | S   | S   | T   | L   | R   | D   |
+	| x    | E   | S   | S   | S   | T   | L   | R   | D   |
 	E: Whether the symbol hold an expression string or a value. `0` for value, `1` for expression
-	S: The section the symbol is defined in. `00` for data, `01` for const, `10` for bss, and `11` for text.
+	S: The section the symbol is defined in. `00` for data, `01` for const, `10` for  bss, `11` for text, `100` for evt, `101` for ivt.
 	T: The type of symbol. `0` for address, and `1` for `.set`.
 	L: The locality of the symbol. `0` for local, and `1` for global.
 	R: The reference state of the symbol. `0` if not referenced, and `1` if referenced.
@@ -33,7 +33,7 @@ typedef struct SymbolTable {
 #define CREATE_FLAGS(E,S,T,L,R,D) ((E<<7)|(S<<4)|(T<<3)|(L<<2)|(R<<1)|(D<<0))
 
 #define GET_EXPRESSION(flags) ((flags>>7) & 0b1)
-#define GET_SECTION(flags) ((flags>>4) & 0b11)
+#define GET_SECTION(flags) ((flags>>4) & 0b111)
 #define GET_TYPE(flags) ((flags>>3) & 0b1)
 #define GET_LOCALITY(flags) ((flags>>2) & 0b1)
 #define GET_REFERENCE(flags) ((flags>>1) & 0b1)

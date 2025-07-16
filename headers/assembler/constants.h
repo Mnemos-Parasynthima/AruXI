@@ -5,7 +5,7 @@
 #define PTR(x) ((char*)(x))
 
 static char* VALID_DIRECTIVES[] = {
-	"data", "const", "bss", "text", "set", "glob", "end",
+	"data", "const", "bss", "text", "evt", "ivt", "set", "glob", "end",
 	"string", "byte", "hword", "word", "float", "zero", "fill", "align",
 	// "size", "extern", "type"
 };
@@ -40,7 +40,7 @@ static char* VALID_INSTRUCTIONS[] = {
 	"b",
 
 	// S-Type
-	"syscall", "hlt", "si", "di", "iret", "ldir",
+	"syscall", "hlt", "si", "di", "eret", "ldir",
 	"mvcstr", "ldcstr"
 
 	// F-Type
@@ -69,7 +69,7 @@ enum Instructions {
 	UB, CALL,
 	UBR, RET,
 	B,
-	SYSCALL, HLT, SI, DI, IRET, LDIR, MVCSTR, LDCSTR
+	SYSCALL, HLT, SI, DI, ERET, LDIR, MVCSTR, LDCSTR
 };
 
 static char* VALID_REGISTERS[] = {

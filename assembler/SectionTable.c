@@ -9,9 +9,9 @@ SectionTable* initSectionTable() {
 	SectionTable* sectTable = (SectionTable*) malloc(sizeof(SectionTable));
 	if (!sectTable) handleError(ERR_MEM, FATAL, "Could not allocate memory for section table!\n");
 
-	for (int i = 0; i < 4; i++) {
-		sectTable->entries[i].lp = 0x0;
-		sectTable->entries[i].size = 0x0;
+	for (int i = 0; i < 6; i++) {
+		sectTable->entries[i].lp = 0x00000000;
+		sectTable->entries[i].size = 0x00000000;
 		sectTable->entries[i].present = false;
 	}
 	sectTable->activeSection = 0;
@@ -41,6 +41,11 @@ void displaySectionTable(SectionTable* sectTable) {
 	debug("\t\tLocation Pointer: 0x%x\n", sectTable->entries[3].lp);
 	debug("\t\tSize: 0x%x bytes\n", sectTable->entries[3].size);
 	debug("\t\tIs present: %s\n", (sectTable->entries[3].present ? "true" : "false"));
+
+	debug("\tEVT Section (4):\n");
+	debug("\t\tLocation Pointer: 0x%x\n", sectTable->entries[4].lp);
+	debug("\t\tSize: 0x%x bytes\n", sectTable->entries[4].size);
+	debug("\t\tIs present: %s\n", (sectTable->entries[4].present ? "true" : "fa;se"));
 }
 
 void deleteSectionTable(SectionTable* sectTable) {

@@ -48,6 +48,58 @@ static void resolveSymbols(SymbolTable* symbTable) {
 }
 
 
+static void _completeData(data_entry_t* entry, DataTable* dataTable, SymbolTable* symbTable) {
+	char* srcData = entry->source;
+	// data remains as the source, that is like "0xff, 0x0, 0x10"
+
+	// `strtok` can either be on `source` itself, but it will "ruin" it, thus not able to see the source later on
+	// or make a temp copy, work on that copy, keeping the source intact
+	char* temp = (char*) malloc(sizeof(char) * strlen(srcData) + 1);
+	strcpy(temp, srcData);
+
+	// This is to work on all types so make it generic
+	void* data = malloc(entry->size);
+	uint32_t i = 0;
+	
+	char* saveptr = NULL;
+	char* dataI = strtok_r(temp, ",", &saveptr);
+	while (dataI) {
+		// printf("Evaluating (%s)\n", dataI);
+		bool canEval = true;
+		uint32_t value = eval(dataI, symbTable, &canEval);
+
+		// Make sure it is evaluated
+		if (!canEval) handleError(ERR_INVALID_EXPRESSION, FATAL, "Could not evaluate %s!\n", dataI);
+
+		// Depending on the type, make sure it conforms to size
+		switch (entry->type)	{
+			case 1: // byte
+				if ((value & 0xff00L) != 0x00) handleError(ERR_INVALID_SIZE, FATAL, "Expression %s exceeds allowed size for byte!\n", dataI);
+				uint8_t* bytedata = (uint8_t*) data;
+				bytedata[i] = (uint8_t) value;
+				break;
+			case 2: // halfwords
+				if ((value & 0xff0000L) != 0x00) handleError(ERR_INVALID_SIZE, FATAL, "Expression %s exceeds allowed size for halfword!\n", dataI);
+				uint16_t* hworddata = (uint16_t*) data;
+				hworddata[i] = (uint16_t) value;
+				break;
+			case 3: //words
+				if ((value & 0xff00000000L) != 0x00) handleError(ERR_INVALID_SIZE, FATAL, "Expression %s exceeds allowed size for word!\n", dataI);
+				uint32_t* worddata = (uint32_t*) data;
+				worddata[i] = value;
+				break;
+			default:
+				break;
+		}
+
+		i++;
+		dataI = strtok_r(NULL, ",", &saveptr);
+	}
+
+	entry->data._data = data;
+	free(temp);
+}
+
 static void completeData(DataTable* dataTable, SymbolTable* symbTable) {
 	// .byte, .hword, and .word are the only ones that left `data` blank
 	// placed in `source`
@@ -57,116 +109,23 @@ static void completeData(DataTable* dataTable, SymbolTable* symbTable) {
 	for (int i = 0; i < dataTable->dSize; i++) {
 		data_entry_t* entry = dataTable->dataEntries[i];
 
-		if (!entry->data._data) {
-			char* srcData = entry->source;
-			// data remains as the source, that is like "0xff, 0x0, 0x10"
-
-			// `strtok` can either be on `source` itself, but it will "ruin" it, thus not able to see the source later on
-			// or make a temp copy, work on that copy, keeping the source intact
-			char* temp = (char*) malloc(sizeof(char) * strlen(srcData) + 1);
-			strcpy(temp, srcData);
-
-			// This is to work on all types so make it generic
-			void* data = malloc(entry->size);
-			uint32_t i = 0;
-			
-			char* saveptr = NULL;
-			char* dataI = strtok_r(temp, ",", &saveptr);
-			while (dataI) {
-				// printf("Evaluating (%s)\n", dataI);
-				bool canEval = true;
-				uint32_t value = eval(dataI, symbTable, &canEval);
-
-				// Make sure it is evaluated
-				if (!canEval) handleError(ERR_INVALID_EXPRESSION, FATAL, "Could not evaluate %s!\n", dataI);
-
-				// Depending on the type, make sure it conforms to size
-				switch (entry->type)	{
-					case 1: // byte
-						if ((value & 0xff00L) != 0x00) handleError(ERR_INVALID_SIZE, FATAL, "Expression %s exceeds allowed size for byte!\n", dataI);
-						uint8_t* bytedata = (uint8_t*) data;
-						bytedata[i] = (uint8_t) value;
-						break;
-					case 2: // halfwords
-						if ((value & 0xff0000L) != 0x00) handleError(ERR_INVALID_SIZE, FATAL, "Expression %s exceeds allowed size for halfword!\n", dataI);
-						uint16_t* hworddata = (uint16_t*) data;
-						hworddata[i] = (uint16_t) value;
-						break;
-					case 3: //words
-						if ((value & 0xff00000000L) != 0x00) handleError(ERR_INVALID_SIZE, FATAL, "Expression %s exceeds allowed size for word!\n", dataI);
-						uint32_t* worddata = (uint32_t*) data;
-						worddata[i] = value;
-						break;
-					default:
-						break;
-				}
-
-				i++;
-				dataI = strtok_r(NULL, ",", &saveptr);
-			}
-
-			entry->data._data = data;
-			free(temp);
-		}
+		if (!entry->data._data) _completeData(entry, dataTable, symbTable);
 	}
 
 	for (int i = 0; i < dataTable->cSize; i++) {
 		data_entry_t* entry = dataTable->constEntries[i];
 
-		if (!entry->data._data) {
-			char* srcData = entry->source;
-			// data remains as the source, that is like "0xff, 0x0, 0x10"
-
-			// `strtok` can either be on `source` itself, but it will "ruin" it, thus not able to see the source later on
-			// or make a temp copy, work on that copy, keeping the source intact
-			char* temp = (char*) malloc(sizeof(char) * strlen(srcData) + 1);
-			strcpy(temp, srcData);
-
-			// This is to work on all types so make it generic
-			void* data = malloc(entry->size);
-			uint32_t i = 0;
-
-			char* saveptr = NULL;
-			char* dataI = strtok_r(temp, " \t,", &saveptr);
-			while (dataI) {
-				bool canEval = true;
-				uint32_t value = eval(dataI, symbTable, &canEval);
-
-				// Make sure it is evaluated
-				if (!canEval) handleError(ERR_INVALID_EXPRESSION, FATAL, "Could not evaluate %s!\n", dataI);
-
-				// Depending on the type, make sure it conforms to size
-				switch (entry->type)	{
-					case 1: // byte
-						if ((value & 0xff00UL) != 0x00) handleError(ERR_INVALID_SIZE, FATAL, "Expression %s exceeds allowed size for byte!\n", dataI);
-						uint8_t* bytedata = (uint8_t*) data;
-						bytedata[i] = (uint8_t) value;
-						break;
-					case 2: // halfwords
-						if ((value & 0xff0000UL) != 0x00) handleError(ERR_INVALID_SIZE, FATAL, "Expression %s exceeds allowed size for halfword!\n", dataI);
-						uint16_t* hworddata = (uint16_t*) data;
-						hworddata[i] = (uint16_t) value;
-						break;
-					case 3: //words
-						if ((value & 0xff00000000UL) != 0x00) handleError(ERR_INVALID_SIZE, FATAL, "Expression %s exceeds allowed size for word!\n", dataI);
-						uint32_t* worddata = (uint32_t*) data;
-						worddata[i] = value;
-						break;
-					default:
-						break;
-				}
-
-				i++;
-				dataI = strtok_r(NULL, " \t,", &saveptr);
-			}
-
-			entry->data._data = data;
-			free(temp);
-		}
+		if (!entry->data._data) _completeData(entry, dataTable, symbTable);
 	}
 
 	// Currently, only .zero is available for bss, and no need to complete data
 	// for (int i = 0; i < dataTable->bSize; i++) {}
+
+	for (int i = 0; i < dataTable->eSize; i++) {
+		data_entry_t* entry = dataTable->evtEntries[i];
+
+		if (!entry->data._data) _completeData(entry, dataTable, symbTable);
+	}
 }
 
 static void clearHash(char* expr) {
@@ -302,8 +261,11 @@ int main(int argc, char const* argv[]) {
 	// For now, program is loaded at a fixed address, refer to documentation on Process Address Space
 	// Space for kernel code is different
 	uint32_t dataStart, constStart, bssStart, textStart;
+	uint32_t evtStart, ivtStart;
 
 	if (kern) {
+		evtStart = 0x00040000;
+		ivtStart = 0x0;
 		dataStart = 0xA0080000;
 		constStart = 0xA0080000;
 		bssStart = 0xA0080000;
@@ -326,6 +288,8 @@ int main(int argc, char const* argv[]) {
 	sectTable->entries[1].lp = constStart;
 	sectTable->entries[2].lp = bssStart;
 	sectTable->entries[3].lp = textStart;
+	sectTable->entries[4].lp = evtStart;
+	sectTable->entries[5].lp = ivtStart;
 
 	// Expressions can use the LP (@)
 	// Instead of passing it to eval, treat it as a (variable) label/symbol
@@ -337,6 +301,12 @@ int main(int argc, char const* argv[]) {
 	size_t n;
 
 	halt = false;
+
+	// TODO: EVT/IVT can only be declared once, that means no `.evt` ... `.data` ... `.evt`
+	bool evtDefined = false;
+	// bool ivtDefined = false;
+	// This is also used to mark off instructions that are in the evt/ivt
+
 
 	ssize_t read = getline(&line, &n, source);
 	while (read != -1) {
@@ -351,6 +321,8 @@ int main(int argc, char const* argv[]) {
 			else if (sectTable->activeSection == 1) debug("CONST\n");
 			else if (sectTable->activeSection == 2) debug("BSS\n");
 			else if (sectTable->activeSection == 3) debug("TEXT\n");
+			else if (sectTable->activeSection == 4) debug("EVT\n");
+			else if (sectTable->activeSection == 5) debug("IVT\n");
 			else debug("UNRECOGNIZED\n");
 
 			lpEntry->value = sectTable->entries[sectTable->activeSection].lp;
@@ -372,8 +344,8 @@ int main(int argc, char const* argv[]) {
 			if (tok) {
 				if (*tok == '.') handleDirective(symbTable, sectTable, dataTable, tok+1, saveptr);
 				else { // Assume it is an instruction
-					// Since it is assuming the line is an instruction, ensure the current section is text
-					if (sectTable->activeSection != 3) handleError(ERR_INSTR_NOT_IN_TEXT, FATAL, "Instruction `%s %s` is not in the text section!\n", tok, saveptr);
+					// Since it is assuming the line is an instruction, ensure the current section is text or ivt/evt
+					if (sectTable->activeSection < 3) handleError(ERR_INSTR_NOT_IN_TEXT, FATAL, "Instruction `%s %s` is not in the text/evt/ivt section!\n", tok, saveptr);
 					// Also ensure LP is aligned
 					if (sectTable->entries[3].lp % 4 != 0) handleError(ERR_MISALIGNMENT, FATAL, "Instruction not aligned!\n");
 
@@ -386,6 +358,31 @@ int main(int argc, char const* argv[]) {
 
 				if (halt) break;
 			}
+
+			// Disallow ivt/evt for non-kernel code
+			if (!kern && (sectTable->activeSection == 4 || sectTable->activeSection == 5)) {
+				handleError(ERR_DIRECTIVE_NOT_ALLOWED, FATAL, "Cannot use EVT or IVT in non-kernel code!\n");
+			}
+
+			if (sectTable->activeSection == 4 && !evtDefined) {
+				// The current section is EVT and it hasn't been defined before
+				evtDefined = true;
+				// Also place a nonsense instruction indicating following instructions are for evt
+
+				char* _null[] = {NULL};
+				instr_obj_t* marker = initInstrObj(0x00000000, NULL, "__EvtStart__", (char**) &_null);
+				marker->encoding = 0xff;
+				addInstrObj(instrStream, marker);
+			}
+
+			if (sectTable->activeSection != 4 && evtDefined) {
+				// Just changed sections, also mark it off
+				// May or may not be needed????
+				char* __null_[] = {NULL};
+				instr_obj_t* marker = initInstrObj(0x00000000, NULL, "__EvtEnd__", (char**) &__null_);
+				marker->encoding = 0xff;
+				addInstrObj(instrStream, marker);
+			}
 		}
 
 		free(cleanLine);
@@ -397,6 +394,13 @@ int main(int argc, char const* argv[]) {
 	sectTable->entries[1].size = sectTable->entries[1].lp - constStart;
 	sectTable->entries[2].size = sectTable->entries[2].lp - bssStart;
 	sectTable->entries[3].size = sectTable->entries[3].lp - textStart;
+	sectTable->entries[4].size = sectTable->entries[4].lp - evtStart;
+	sectTable->entries[5].size = sectTable->entries[5].lp - ivtStart;
+
+	// Even though sections may be declared, if nothing is contained, might as well pretend they never existed
+	for (int i = 0; i < 6; i++) {
+		if (sectTable->entries[i].size == 0) sectTable->entries[i].present = false;
+	}
 
 	debug("\n");
 	displaySymbTable(symbTable);
@@ -406,8 +410,13 @@ int main(int argc, char const* argv[]) {
 	debug("\n");
 	
 	// Confirms existence of text section and _init label (and marked global) at text, undefined (but referenced) symbols
+	// Also make sure EVT/IVT exists in kernel code
 
 	if (!sectTable->entries[3].present) handleError(ERR_NO_TEXT, FATAL, "Text section has not been defined!\n");
+
+	if (kern && (!evtDefined)) { // || !ivtDefined)) {
+		handleError(ERR_NO_VT, FATAL, "No IVT or EVT defined for kernel code!\n");
+	}
 
 	symb_entry_t* initLabel = getSymbEntry(symbTable, "_init");
 	if (!initLabel) handleError(ERR_NO_ENTRY, FATAL, "Entry point '_init' not found!\n");
