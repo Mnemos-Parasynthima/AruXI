@@ -582,7 +582,7 @@ HANDLE_INSTR(handleI) {
 
 	char* operands[] = { xd, xs, imm, NULL };
 
-	instr_obj_t* instrObj = initInstrObj(sectTable->entries[3].lp, NULL, instr, (char**) operands);
+	instr_obj_t* instrObj = initInstrObj(sectTable->entries[sectTable->activeSection].lp, NULL, instr, (char**) operands);
 	addInstrObj(instrStream, instrObj);
 
 	// Temporarily mark type with `encoding`
@@ -607,7 +607,7 @@ HANDLE_INSTR(handleR) {
 
 	char* operands[] = { xd, xs, xr, NULL };
 
-	instr_obj_t* instrObj = initInstrObj(sectTable->entries[3].lp, NULL, instr, (char**) operands);
+	instr_obj_t* instrObj = initInstrObj(sectTable->entries[sectTable->activeSection].lp, NULL, instr, (char**) operands);
 	addInstrObj(instrStream, instrObj);
 
 	instrObj->encoding = 0x1;
@@ -646,7 +646,7 @@ HANDLE_INSTR(handleIR) {
 	if (rem) handleError(ERR_INVALID_SYNTAX, FATAL, "Unexpected operands: `%s`\n", rem);
 
 
-	instr_obj_t* instrObj = initInstrObj(sectTable->entries[3].lp, NULL, instr, (char**) operands);
+	instr_obj_t* instrObj = initInstrObj(sectTable->entries[sectTable->activeSection].lp, NULL, instr, (char**) operands);
 	addInstrObj(instrStream, instrObj);
 
 	instrObj->encoding = 0x10;
@@ -744,7 +744,7 @@ HANDLE_INSTR(handleM) {
 
 						char* ldOperands[5] = { xd, "ir", irOffsetStr, index, NULL };
 
-						instr_obj_t* instrObj = initInstrObj(sectTable->entries[3].lp, NULL, instr, (char**) ldOperands);
+						instr_obj_t* instrObj = initInstrObj(sectTable->entries[sectTable->activeSection].lp, NULL, instr, (char**) ldOperands);
 						addInstrObj(instrStream, instrObj);
 						instrObj->encoding = 0x2;
 
@@ -765,7 +765,7 @@ HANDLE_INSTR(handleM) {
 				sprintf(immlstr, "#%u", imml);
 
 				operands[2] = immhstr;
-				instr_obj_t* mvHInstr = initInstrObj(sectTable->entries[3].lp, NULL, "mv", (char**) operands);
+				instr_obj_t* mvHInstr = initInstrObj(sectTable->entries[sectTable->activeSection].lp, NULL, "mv", (char**) operands);
 				addInstrObj(instrStream, mvHInstr);
 				mvHInstr->encoding = 0x0;
 			} else {
@@ -776,7 +776,7 @@ HANDLE_INSTR(handleM) {
 				// Still keep the first/original instruction as the first
 				// Save it as an I-type
 				operands[2] = expr;
-				instr_obj_t* ldInstr = initInstrObj(sectTable->entries[3].lp, NULL, "ld", (char**) operands);
+				instr_obj_t* ldInstr = initInstrObj(sectTable->entries[sectTable->activeSection].lp, NULL, "ld", (char**) operands);
 				addInstrObj(instrStream, ldInstr);
 				ldInstr->encoding = 0x11; // special encoding type
 
@@ -788,36 +788,36 @@ HANDLE_INSTR(handleM) {
 
 			operands[1] = xd;
 			operands[2] = "#18";
-			instr_obj_t* lsl18Instr = initInstrObj(sectTable->entries[3].lp+4, NULL, "lsl", (char**) operands);
+			instr_obj_t* lsl18Instr = initInstrObj(sectTable->entries[sectTable->activeSection].lp+4, NULL, "lsl", (char**) operands);
 			addInstrObj(instrStream, lsl18Instr);
 			lsl18Instr->encoding = 0x0;
 
 			operands[0] = VALID_REGISTERS[C0];
 			operands[1] = VALID_REGISTERS[XZ];
 			operands[2] = immmstr;
-			instr_obj_t* mvMInstr = initInstrObj(sectTable->entries[3].lp+8, NULL, "mv", (char**) operands);
+			instr_obj_t* mvMInstr = initInstrObj(sectTable->entries[sectTable->activeSection].lp+8, NULL, "mv", (char**) operands);
 			addInstrObj(instrStream, mvMInstr);
 			mvMInstr->encoding = 0x0;
 
 			operands[1] = VALID_REGISTERS[C0];
 			operands[2] = "#4";
-			instr_obj_t* lsl4Instr = initInstrObj(sectTable->entries[3].lp+12, NULL, "lsl", (char**) operands);
+			instr_obj_t* lsl4Instr = initInstrObj(sectTable->entries[sectTable->activeSection].lp+12, NULL, "lsl", (char**) operands);
 			addInstrObj(instrStream, lsl4Instr);
 			lsl4Instr->encoding = 0x0;
 
 			operands[0] = xd;
 			operands[1] = xd;
 			operands[2] = VALID_REGISTERS[C0];
-			instr_obj_t* orInstr = initInstrObj(sectTable->entries[3].lp+16, NULL, "or", (char**) operands);
+			instr_obj_t* orInstr = initInstrObj(sectTable->entries[sectTable->activeSection].lp+16, NULL, "or", (char**) operands);
 			addInstrObj(instrStream, orInstr);
 			orInstr->encoding = 0x1;
 
 			operands[2] = immlstr;
-			instr_obj_t* addInstr = initInstrObj(sectTable->entries[3].lp+20, NULL, "add", (char**) operands);
+			instr_obj_t* addInstr = initInstrObj(sectTable->entries[sectTable->activeSection].lp+20, NULL, "add", (char**) operands);
 			addInstrObj(instrStream, addInstr);
 			addInstr->encoding = 0x0;
 
-			sectTable->entries[3].lp += 20; // The normal LP is incremented by 4 in main, handle the extra five instructions
+			sectTable->entries[sectTable->activeSection].lp += 20; // The normal LP is incremented by 4 in main, handle the extra five instructions
 
 			// In the case that it is not a literal (need to load a value from the immediate address), add a normal load-reg
 			// ld reg, [reg]
@@ -825,11 +825,11 @@ HANDLE_INSTR(handleM) {
 				debug("ld is for loading from immediate address, adding normal ld\n");
 				operands[2] = PTR(0xFEEDFAED); // Since this will be `ld xd, [xd]`, 0 is already xd, 1 is already xd
 				operands[3] = VALID_REGISTERS[XZ];
-				instr_obj_t* ldInstr = initInstrObj(sectTable->entries[3].lp+24, NULL, "ld", (char**) operands);
+				instr_obj_t* ldInstr = initInstrObj(sectTable->entries[sectTable->activeSection].lp+24, NULL, "ld", (char**) operands);
 				addInstrObj(instrStream, ldInstr);
 				ldInstr->encoding = 0x2;
 
-				sectTable->entries[3].lp += 4;
+				sectTable->entries[sectTable->activeSection].lp += 4;
 			}
 
 			return;
@@ -897,7 +897,7 @@ HANDLE_INSTR(handleM) {
 
 	char* operands[5] = { xd, base, offset, index, NULL };
 
-	instr_obj_t* instrObj = initInstrObj(sectTable->entries[3].lp, NULL, instr, (char**) operands);
+	instr_obj_t* instrObj = initInstrObj(sectTable->entries[sectTable->activeSection].lp, NULL, instr, (char**) operands);
 	addInstrObj(instrStream, instrObj);
 
 	instrObj->encoding = 0x2;
@@ -916,7 +916,7 @@ HANDLE_INSTR(handleBi) {
 	// Hold
 
 	char* operands[] = { expr, NULL };
-	instr_obj_t* instrObj = initInstrObj(sectTable->entries[3].lp, NULL, instr, (char**) operands);
+	instr_obj_t* instrObj = initInstrObj(sectTable->entries[sectTable->activeSection].lp, NULL, instr, (char**) operands);
 	addInstrObj(instrStream, instrObj);
 
 	instrObj->encoding = 0x3;
@@ -932,7 +932,7 @@ HANDLE_INSTR(handleBu) {
 		operands[0] = xd;
 	} else operands[0] = "lr";
 
-	instr_obj_t* instrObj = initInstrObj(sectTable->entries[3].lp, NULL, instr, (char**) operands);
+	instr_obj_t* instrObj = initInstrObj(sectTable->entries[sectTable->activeSection].lp, NULL, instr, (char**) operands);
 	addInstrObj(instrStream, instrObj);
 
 	instrObj->encoding = 0x4;
@@ -956,11 +956,11 @@ HANDLE_INSTR(handleBc) {
 }
 
 HANDLE_INSTR(handleS) { 
-	// As of now, S-types either have no operands or only one (ldir, mvcstr, ldcstr)
-	// Can currently be differentiated by either 'l' or 'm'
+	// As of now, S-types either have no operands or only one (ldir, mvcstr, ldcstr, resr)
+	// Can currently be differentiated by either 'l', 'm', or 'r'
 	
 	char* operands[2] = { NULL, NULL };
-	if (*instr == 'l' || *instr == 'm') {
+	if (*instr == 'l' || *instr == 'm' || *instr == 'r') {
 		// Check only one operand
 		char* xd_xs = strtok_r(NULL, " \t", &args);
 		if (!xd_xs) handleError(ERR_INVALID_SYNTAX, FATAL, "Expected registers, got nothing!\n");
@@ -972,7 +972,7 @@ HANDLE_INSTR(handleS) {
 	char* rest = strtok_r(NULL, " \t,", &args);
 	if (rest) handleError(ERR_INVALID_SYNTAX, FATAL, "Unexpected operands: `%s`\n", rest);
 
-	instr_obj_t* instrObj = initInstrObj(sectTable->entries[3].lp, NULL, instr, (char**) operands);
+	instr_obj_t* instrObj = initInstrObj(sectTable->entries[sectTable->activeSection].lp, NULL, instr, (char**) operands);
 	addInstrObj(instrStream, instrObj);
 	instrObj->encoding = 0x5;
 }

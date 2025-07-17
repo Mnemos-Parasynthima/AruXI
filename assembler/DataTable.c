@@ -70,7 +70,7 @@ void addDataEntry(DataTable* dataTable, data_entry_t* dataEntry, data_sect_type_
 	if (*size == *capacity) {
 		*capacity *= 2;
 
-		data_entry_t** temp = (data_entry_t**) realloc(entries, sizeof(data_entry_t*) * (*capacity));
+		data_entry_t** temp = (data_entry_t**) realloc(*entries, sizeof(data_entry_t*) * (*capacity));
 		if (!temp) handleError(ERR_MEM, FATAL, "Could not reallocate memory for data entries!\n");
 
 		*entries = temp;

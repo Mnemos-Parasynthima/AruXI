@@ -41,7 +41,7 @@ static char* VALID_INSTRUCTIONS[] = {
 
 	// S-Type
 	"syscall", "hlt", "si", "di", "eret", "ldir",
-	"mvcstr", "ldcstr"
+	"mvcstr", "ldcstr", "resr"
 
 	// F-Type
 
@@ -55,7 +55,7 @@ static char* VALID_INSTRUCTIONS[] = {
 #define Bu_TYPE_IDX 31
 #define Bc_TYPE_IDX 33
 #define S_TYPE_IDX 34
-#define F_TYPE_IDX 42
+#define F_TYPE_IDX 43
 
 enum Instructions {
 	ADD, ADDS, SUB, SUBS,
@@ -69,7 +69,7 @@ enum Instructions {
 	UB, CALL,
 	UBR, RET,
 	B,
-	SYSCALL, HLT, SI, DI, ERET, LDIR, MVCSTR, LDCSTR
+	SYSCALL, HLT, SI, DI, ERET, LDIR, MVCSTR, LDCSTR, RESR
 };
 
 static char* VALID_REGISTERS[] = {

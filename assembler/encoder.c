@@ -290,7 +290,7 @@ static void encodeBu(instr_obj_t* instr) {
 
 static void encodeS(instr_obj_t* instr) {
 	uint32_t encoding = 0x00000000;
-	uint32_t subOpcode = 0b0000;
+	uint32_t subOpcode = 0b00000;
 #ifdef _WIN64
 	uint32_t opcode = 0b10111110;
 #else
@@ -309,19 +309,22 @@ static void encodeS(instr_obj_t* instr) {
 	uint8_t rd = 0b00000;
 	uint8_t rs = 0b00000;
 
-	if (strcasecmp(instrStr, VALID_INSTRUCTIONS[SYSCALL]) == 0) subOpcode = 0b0001;
-	else if (strcasecmp(instrStr, VALID_INSTRUCTIONS[HLT]) == 0) subOpcode = 0b0011;
-	else if (strcasecmp(instrStr, VALID_INSTRUCTIONS[SI]) == 0) subOpcode = 0b0101;
-	else if (strcasecmp(instrStr, VALID_INSTRUCTIONS[DI]) == 0) subOpcode = 0b0111;
-	else if (strcasecmp(instrStr, VALID_INSTRUCTIONS[ERET]) == 0) subOpcode = 0b1001;
+	if (strcasecmp(instrStr, VALID_INSTRUCTIONS[SYSCALL]) == 0) subOpcode = 0b00010;
+	else if (strcasecmp(instrStr, VALID_INSTRUCTIONS[HLT]) == 0) subOpcode = 0b00110;
+	else if (strcasecmp(instrStr, VALID_INSTRUCTIONS[SI]) == 0) subOpcode = 0b01010;
+	else if (strcasecmp(instrStr, VALID_INSTRUCTIONS[DI]) == 0) subOpcode = 0b01110;
+	else if (strcasecmp(instrStr, VALID_INSTRUCTIONS[ERET]) == 0) subOpcode = 0b10010;
 	else if (strcasecmp(instrStr, VALID_INSTRUCTIONS[LDIR]) == 0) {
-		subOpcode = 0b1011;
+		subOpcode = 0b10110;
 		rd = getRegisterEncoding(xs_xd);
 	} else if (strcasecmp(instrStr, VALID_INSTRUCTIONS[MVCSTR]) == 0) {
-		subOpcode = 0b1101;
+		subOpcode = 0b11010;
 		rs = getRegisterEncoding(xs_xd);
 	} else if (strcasecmp(instrStr, VALID_INSTRUCTIONS[LDCSTR]) == 0) {
-		subOpcode = 0b1111;
+		subOpcode = 0b11110;
+		rd = getRegisterEncoding(xs_xd);
+	} else if (strcasecmp(instrStr, VALID_INSTRUCTIONS[RESR]) == 0) {
+		subOpcode = 0b11111;
 		rd = getRegisterEncoding(xs_xd);
 	} else handleError(ERR_INVALID_INSTRUCTION, FATAL, "Could not detect instruction %s for S-type!\n", instrStr);
 

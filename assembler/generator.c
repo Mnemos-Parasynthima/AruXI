@@ -132,6 +132,7 @@ static void generateEVT(AOEFbin* bin, InstructionStream* instrStream, DataTable*
 		if (instr->addr == 0x00000000) break; // initial buffer
 	}
 	iInstr++;
+	instr = instrStream->instructions[iInstr];
 
 	// Cannot know size of EVT without being indicated, kind of
 	// One possibility is having the size of evtEntries and having the assumption that the number of EVT header instructions
@@ -152,19 +153,15 @@ static void generateEVT(AOEFbin* bin, InstructionStream* instrStream, DataTable*
 		if (instrAddr < dataAddr) {
 			// Instruction came first, write it
 
-			// Since evtSect is in bytes but instr is in halfwords, cast it first
-			uint32_t* evtSect_Instr = (uint32_t*) evtSect;
-			evtSect_Instr[pos] = instr->encoding;
-			// Note that since array indexing is used, `pos` is not guaranteed to hit an aligment of 4
-			// Not our issue, the CPU will detect it
+			memcpy(evtSect + pos, &instr->encoding, sizeof(uint32_t));
 			pos += 4;
 
 			// Get next instruction if not end
-			if (!endInstr) instr = instrStream->instructions[iInstr++];
+			if (!endInstr) instr = instrStream->instructions[++iInstr];
 
 			// Make sure still within EVT bounds
 			if (instr->addr == 0x00000000) {
-				// Next (rather this) instruction marks ending, meaning the rest to be written is data
+				// This instruction marks ending, meaning the rest to be written is data
 				// Since the comparisons are made using addresses, set the address to be at a high address that it will go to data
 				instr->addr = 0xFFFFFFFF;
 				// Note that however this check only occurs once and for the instrucions after the ending marker, it will think they are part of the EVT
@@ -188,7 +185,6 @@ static void generateEVT(AOEFbin* bin, InstructionStream* instrStream, DataTable*
 			// Advancing to next data entry is done by the for loop
 		}
 	}
-
 	bin->_evt = evtSect;
 }
 
@@ -346,7 +342,7 @@ AOEFbin* generateBinary(InstructionStream* instrStream, SymbolTable* symbTable, 
 	}
 
 	sectEntries++; // ending blank entry
-	debug("%d sect entries\n", sectEntries);
+	// debug("%d sect entries\n", sectEntries);
 	uint32_t symbTableSize = symbTable->size;
 	// Since the symbol table will have an empty ending symbol, the size would be +1
 	// However, symbTable.size includes the LP, so have that +1 be the blank

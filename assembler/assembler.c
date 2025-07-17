@@ -302,8 +302,9 @@ int main(int argc, char const* argv[]) {
 
 	halt = false;
 
-	// TODO: EVT/IVT can only be declared once, that means no `.evt` ... `.data` ... `.evt`
-	bool evtDefined = false;
+	// EVT/IVT can only be declared once, that means no `.evt` ... `.data` ... `.evt`
+	// bool evtDefined = false;
+	char evtDefined = 0x00; // upper nibble marks start, lower nibble marks end
 	// bool ivtDefined = false;
 	// This is also used to mark off instructions that are in the evt/ivt
 
@@ -354,7 +355,7 @@ int main(int argc, char const* argv[]) {
 
 					// Increment LP by instruction size
 					int sectIdx = 3;
-					if (evtDefined) sectIdx = 4;
+					if ((evtDefined & 0xff) == 0xf0) sectIdx = 4;
 					sectTable->entries[sectIdx].lp += 4;
 				}
 
@@ -366,9 +367,14 @@ int main(int argc, char const* argv[]) {
 				handleError(ERR_DIRECTIVE_NOT_ALLOWED, FATAL, "Cannot use EVT or IVT in non-kernel code!\n");
 			}
 
-			if (sectTable->activeSection == 4 && !evtDefined) {
+			// Disallow reusage of EVT
+			if (sectTable->activeSection == 4 && ((evtDefined & 0xff) == 0xff)) {
+				handleError(ERR_DIRECTIVE_NOT_ALLOWED, FATAL, "EVT cannot be declared more than once!\n");
+			}
+
+			if (sectTable->activeSection == 4 && ((evtDefined & 0xff) == 0x00)) {
 				// The current section is EVT and it hasn't been defined before
-				evtDefined = true;
+				evtDefined = 0xf0;
 				// Also place a nonsense instruction indicating following instructions are for evt
 
 				char* _null[] = {NULL};
@@ -377,9 +383,9 @@ int main(int argc, char const* argv[]) {
 				addInstrObj(instrStream, marker);
 			}
 
-			if (sectTable->activeSection != 4 && evtDefined) {
+			if (sectTable->activeSection != 4 && ((evtDefined & 0xff) == 0xf0)) {
 				// Just changed sections, also mark it off
-				// May or may not be needed????
+				evtDefined = 0xff;
 				char* __null_[] = {NULL};
 				instr_obj_t* marker = initInstrObj(0x00000000, NULL, "__EvtEnd__", (char**) &__null_);
 				marker->encoding = 0xff;
@@ -391,6 +397,15 @@ int main(int argc, char const* argv[]) {
 		read = getline(&line, &n, source);
 	}
 	fclose(source);
+
+	// If the code ends with the EVT, no __EvtEnd__ is placed, add it manually
+	if ((evtDefined & 0xff) == 0xf0) {
+		evtDefined = 0xff;
+		char* __null_[] = {NULL};
+		instr_obj_t* marker = initInstrObj(0x00000000, NULL, "__EvtEnd__", (char**) &__null_);
+		marker->encoding = 0xff;
+		addInstrObj(instrStream, marker);
+	}
 
 	sectTable->entries[0].size = sectTable->entries[0].lp - dataStart;
 	sectTable->entries[1].size = sectTable->entries[1].lp - constStart;
@@ -416,7 +431,7 @@ int main(int argc, char const* argv[]) {
 
 	if (!sectTable->entries[3].present) handleError(ERR_NO_TEXT, FATAL, "Text section has not been defined!\n");
 
-	if (kern && (!evtDefined)) { // || !ivtDefined)) {
+	if (kern && ((evtDefined & 0xff) == 0x00)) { // || !ivtDefined)) {
 		handleError(ERR_NO_VT, FATAL, "No IVT or EVT defined for kernel code!\n");
 	}
 
