@@ -41,6 +41,7 @@ typedef enum {
 	DATA_SECT,
 	CONST_SECT,
 	BSS_SECT,
+	NONE_SECT,
 	EVT_SECT,
 	IVT_SECT
 } data_sect_type_t;

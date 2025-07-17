@@ -353,7 +353,9 @@ int main(int argc, char const* argv[]) {
 					handleInstruction(instrStream, symbTable, sectTable, tok, saveptr);
 
 					// Increment LP by instruction size
-					sectTable->entries[3].lp += 4;
+					int sectIdx = 3;
+					if (evtDefined) sectIdx = 4;
+					sectTable->entries[sectIdx].lp += 4;
 				}
 
 				if (halt) break;

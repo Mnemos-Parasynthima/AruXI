@@ -341,7 +341,7 @@ static void generateSymbolTable(AOEFbin* bin, SymbolTable* symbTable) {
 AOEFbin* generateBinary(InstructionStream* instrStream, SymbolTable* symbTable, DataTable* dataTable, SectionTable* sectTable) {
 	int sectEntries = 0;
 
-	for (int i = 0; i < 4; i++) {
+	for (int i = 0; i < 6; i++) {
 		if (sectTable->entries[i].present) sectEntries++;
 	}
 
