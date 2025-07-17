@@ -1,3 +1,4 @@
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -91,10 +92,22 @@ void handleSIGSEGV(int signum) {
 	fflush(stderr);
 	fflush(stdout);
 	flushDebug();
-	write(STDOUT_FILENO, "CPU got SIGSEGV'd\n", 18);
-	munmap(sigMem->metadata.heap[CPU_HEAP], PAGESIZE);
-	munmap(sigMem, SIG_MEM_SIZE);
-	munmap(emMem, MEMORY_SPACE_SIZE);
+	write(STDERR_FILENO, "CPU got SIGSEGV'd\n", 18);
+	if (sigMem) {
+		write(STDERR_FILENO, "sig mem in SIGSEGV\n", 19);
+		if (sigMem->metadata.heap[CPU_HEAP]) {
+			write(STDERR_FILENO, "sig heap in SIGSEGV\n", 20);
+			munmap(sigMem->metadata.heap[CPU_HEAP], PAGESIZE);
+			sigMem->metadata.heap[CPU_HEAP] = NULL;
+		}
+		munmap(sigMem, SIG_MEM_SIZE);
+	}
+	sigMem = NULL;
+	if (emMem) {
+		write(STDERR_FILENO, "em mem in SIGSEGV\n", 18);
+		munmap(emMem, MEMORY_SPACE_SIZE);
+	}
+	emMem = NULL;
 	exit(-1);
 }
 
@@ -115,13 +128,23 @@ void handleSIGUSR1(int signum) {
 			switch (i) {
 				case emSIG_FAULT_IDX:
 					write(STDERR_FILENO, "CPU detected SIG_FAULT\n", 23);
-					munmap(sigMem, SIG_MEM_SIZE);
+					munmap(sigMem->metadata.heap[CPU_HEAP], PAGESIZE);
+					sigMem->metadata.heap[CPU_HEAP] = NULL;
+					write(STDERR_FILENO, "Unmapped heap mem and NULL'd\n", 29);
+					// munmap(sigMem, SIG_MEM_SIZE);
+					// sigMem = NULL;
+					// write(STDERR_FILENO, "Unmapped sig mem and NULL'd\n", 28);
 					munmap(emMem, MEMORY_SPACE_SIZE);
+					emMem = NULL;
+					write(STDERR_FILENO, "Unmapped em mem and NULL'd\n", 27);
 					exit(-1);
 					break;
 				case emSIG_EXEC_IDX:
 					write(STDOUT_FILENO, "CPU detected SIG_EXEC\n", 22);
+					write(STDOUT_FILENO, "Resuming execution\n", 19);
+					// No need to set PRIV as it ended as kernel
 					core.IR = sig->metadata.execprog.entry;
+					core.status = STAT_RUNNING;
 					// Resume core
 					pthread_mutex_lock(&idleLock);
 					IDLE = false;
@@ -269,6 +292,7 @@ int main(int argc, char const* argv[]) {
 	// Set up
 	core.IR = entry;
 	core.SP = KERN_STACK_LIMIT;
+	core.CSTR = SET_PRIV(0, core.CSTR); // set to kernel mode
 
 	dLog(D_NONE, DSEV_INFO, "Setting up..running kernel at 0x%x...", entry);
 

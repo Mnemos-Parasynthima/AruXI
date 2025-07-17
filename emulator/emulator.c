@@ -24,6 +24,7 @@
 #define KERN_TEXT 0xB8080000
 #define KERN_HEAP 0xD0080000
 #define KERN_STACK 0xF0080000
+#define EVT_START 0x00040000
 
 
 SigMem* signalsMemory;
@@ -108,7 +109,7 @@ static void* loadKernel(char* kernimg) {
 	close(fd);
 
 	AOEFFheader* header = (AOEFFheader*) ptr;
-	
+
 	// Check it is an AOEFF and it is type kernel
 	if (header->hID[AHID_0] != AH_ID0 && header->hID[AHID_1] != AH_ID1 && 
 			header->hID[AHID_2] != AH_ID2 && header->hID[AH_ID3] != AH_ID3) dFatal(D_ERR_INVALID_FORMAT, "File is not an AOEFF!");
@@ -197,6 +198,14 @@ static void setupKernel(uint8_t* memory, uint8_t* kernimg, signal_t* sigs) {
 			dDebug(DB_DETAIL, "First item in text: 0x%x from 0x%x", *(textStart), *(kernimgText));
 
 			memcpy(textStart, kernimgText, sectHdr->shSectSize);
+		} else if (strncmp(".evt", sectHdr->shSectName, 8) == 0) {
+			uint8_t* evtStart = memory + EVT_START;
+			uint8_t* kernimgEvt = kernimg + sectHdr->shSectOff;
+
+			dDebug(DB_DETAIL, "Start of EVT section in kernel image: %p::Start of EVT section in emulated memory:%p", kernimgEvt, evtStart);
+			dDebug(DB_DETAIL, "First item in EVT: 0x%x from 0x%x", *(evtStart), *(kernimgEvt));
+
+			memcpy(evtStart, kernimgEvt, sectHdr->shSectSize);
 		}
 	}
 

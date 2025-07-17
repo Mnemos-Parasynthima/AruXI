@@ -25,6 +25,7 @@ typedef struct Core {
 	float FPR[16];
 	vec_reg_t VR[6];
 	uint16_t CSTR;
+	uint16_t ESR;
 
 	InstrCtx uarch;
 	status_t status;

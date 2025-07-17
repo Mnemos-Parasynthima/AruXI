@@ -34,8 +34,8 @@ static void fault() {
 
 
 static void fetch() {
-	// Instructions cannot be 0x00000000
-	FetchCtx.instrbits = 0x0;
+	// Instructions cannot be 0
+	FetchCtx.instrbits = 0x00000000;
 
 	memerr_t err;
 	dLog(D_NONE, DSEV_INFO, "fetch::Fetching from 0x%x...", core.IR);
@@ -133,7 +133,7 @@ void extractRegs() {
 		}
 	} else if (type == S_TYPE) {
 		if (opcode == OP_MVCSTR) rs = _rsIS;
-		else if (opcode == OP_LDIR || opcode == OP_LDCSTR) rd = _rd;
+		else if (opcode == OP_LDIR || opcode == OP_LDCSTR || opcode == OP_RESR) rd = _rd;
 	}
 
 	DecodeCtx.rd = rd;
@@ -266,17 +266,18 @@ static void decode() {
 	if (code == OP_SYS) {
 		DecodeCtx.iType = S_TYPE;
 		// get subopcode
-		uint8_t subopcode = u32bitextract(FetchCtx.instrbits, 20, 4);
+		uint8_t subopcode = u32bitextract(FetchCtx.instrbits, 19, 5);
 		opcode_t subcode = OP_ERROR;
 		switch (subopcode)	{
-			case 0b0001: subcode = OP_SYSCALL; break;
-			case 0b0011: subcode = OP_HLT; break;
-			case 0b0101: subcode = OP_SI; break;
-			case 0b0111: subcode = OP_DI; break;
-			case 0b1001: subcode = OP_IRET; break;
-			case 0b1011: subcode = OP_LDIR; break;
-			case 0b1101: subcode = OP_MVCSTR; break;
-			case 0b1111: subcode = OP_LDCSTR; break;
+			case 0b00010: subcode = OP_SYSCALL; break;
+			case 0b00110: subcode = OP_HLT; break;
+			case 0b01010: subcode = OP_SI; break;
+			case 0b01110: subcode = OP_DI; break;
+			case 0b10010: subcode = OP_IRET; break;
+			case 0b10110: subcode = OP_LDIR; break;
+			case 0b11010: subcode = OP_MVCSTR; break;
+			case 0b11110: subcode = OP_LDCSTR; break;
+			case 0b11111: subcode = OP_RESR; break;
 			default: break;
 		}
 
@@ -308,7 +309,7 @@ static void decode() {
 	DecodeCtx.memwrite = false;
 
 	if (DecodeCtx.iType == I_TYPE || DecodeCtx.iType == R_TYPE || (FetchCtx.opcode >= OP_LD && FetchCtx.opcode <= OP_LDHZ) || 
-		FetchCtx.opcode == OP_CALL || (FetchCtx.opcode >= OP_LDIR && FetchCtx.opcode <= OP_LDCSTR)) DecodeCtx.regwrite = true;
+		FetchCtx.opcode == OP_CALL || (FetchCtx.opcode >= OP_LDIR && FetchCtx.opcode <= OP_RESR)) DecodeCtx.regwrite = true;
 	if (FetchCtx.opcode >= OP_LD && FetchCtx.opcode <= OP_LDHZ) DecodeCtx.memwrite = true;
 
 	if (FetchCtx.opcode >= OP_STR && FetchCtx.opcode <= OP_STRH) MemoryCtx.write = true;
@@ -439,6 +440,7 @@ void initCore() {
 	}
 
 	core.CSTR = 0x0000;
+	core.ESR = 0x0000;
 
 	memset(&core.uarch, 0x0, sizeof(InstrCtx));
 }

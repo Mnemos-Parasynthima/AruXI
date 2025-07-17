@@ -96,6 +96,9 @@ void regfile(bool write) {
 			// The first step is on MVCSTR cycle, indicating to commit and set it
 			setCSTR = MemoryCtx.valout | COMMIT_PRIV;
 			return;
+		} else if (FetchCtx.opcode == OP_RESR) {
+			MemoryCtx.valout = core.ESR;
+			dLog(D_NONE, DSEV_INFO, "regfile(special)::Writing from ESR");
 		}
 
 		if (DecodeCtx.rd == 31) {

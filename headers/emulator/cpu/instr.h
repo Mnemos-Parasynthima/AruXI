@@ -64,6 +64,7 @@ typedef enum opcode {
 	OP_LDIR,
 	OP_MVCSTR,
 	OP_LDCSTR,
+	OP_RESR,
 
 	OP_ERROR = -1
 } opcode_t;
