@@ -328,7 +328,7 @@ static void encodeS(instr_obj_t* instr) {
 		rd = getRegisterEncoding(xs_xd);
 	} else handleError(ERR_INVALID_INSTRUCTION, FATAL, "Could not detect instruction %s for S-type!\n", instrStr);
 
-	encoding = (opcode << 24) | (subOpcode << 20) | (rs << 5) | (rd << 0);
+	encoding = (opcode << 24) | (subOpcode << 19) | (rs << 5) | (rd << 0);
 	instr->encoding = encoding;
 }
 
