@@ -23,6 +23,9 @@
 #define SYS_LIB 0x00080000
 #define SYS_LIB_LIMIT 0x1007FFFF
 
+#define EVT_START 0x00040000
+#define EVT_LIMIT 0x0007FFFF
+
 
 typedef enum memerr {
 	MEMERR_INTERNAL,

@@ -53,6 +53,31 @@ static void handleLoadSignal(signal_t* emuShellSig) {
 }
 
 /**
+ * 
+ * @param emuCPUSig 
+ */
+static void handleFaultSignal(signal_t* emuCPUSig) {
+	// Only time emulator gets fault signal is on user abort exception
+	// Do a "coredump"
+	uint32_t _psPtr = KERN_DATA + 0x4;
+	uint8_t* psPtr = emulatedMemory + _psPtr;
+	// Unlike in cpu/core, emulator does not know the structure of PS
+	// No need to do an unncessary "import"
+	// Just go with offsets :)
+
+	uint32_t userSP = *((uint32_t*)(psPtr + 0x6));
+	uint32_t userIR = *((uint32_t*)(psPtr + 10));
+	uint16_t userCSTR = *((uint16_t*)(psPtr + 14));
+	uint16_t userESR = *((uint16_t*)(psPtr + 16));
+	uint32_t* userGPR = (uint32_t*)(psPtr + 18);
+	uint8_t userExcpType = *(psPtr + 278);
+
+
+
+	emuCPUSig->ackMask = SIG_SET(emuCPUSig->ackMask, emSIG_FAULT_IDX);
+}
+
+/**
  * Handle SIGUSR1. SIGUSR1 indicates as a poke to tell the process to check the signal memory.
  * @param signum 
  */
@@ -74,6 +99,9 @@ void handleSIGUSR1(int signum) {
 					write(STDOUT_FILENO, "Emulator detected SIG_LOAD\n", 27);
 					handleLoadSignal(sig);
 					break;
+				case emSIG_FAULT_IDX:
+					write(STDOUT_FILENO, "Emulator detected SIG_FAULT\n", 28);
+					handleFaultSignal(sig);
 				default:
 					break;
 			}

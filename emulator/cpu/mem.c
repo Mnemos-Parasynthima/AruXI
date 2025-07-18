@@ -11,11 +11,13 @@ extern uint8_t* emMem;
 memerr_t validKIMemAddr(uint32_t addr) {
 	bool inTextSect = (addr < KERN_HEAP && addr >= KERN_TEXT);
 	dDebug(DB_TRACE, "addr 0x%x in text? %d", addr, inTextSect);
-	bool inSyslib = (addr <= SYS_LIB_LIMIT && SYS_LIB);
+	bool inSyslib = (addr <= SYS_LIB_LIMIT && addr >= SYS_LIB);
 	dDebug(DB_TRACE, "addr 0x%x in syslib? %d", addr, inSyslib);
+	bool inEvt = (addr <= EVT_LIMIT && addr >= EVT_START);
+	dDebug(DB_TRACE, "addr 0x%x in evt? %d", addr, inEvt);
 
 	// Even though SECT_READ allows reading in heap/stack/data, this is for instruction memory
-	if (!inTextSect && !inSyslib) return MEMERR_KERN_SECT_READ;
+	if (!inTextSect && !inSyslib && !inEvt) return MEMERR_KERN_SECT_READ;
 	else return MEMERR_NONE;
 }
 
@@ -33,7 +35,8 @@ uint32_t _memRead(uint32_t addr, unsigned width, memerr_t* memerr) {
 	// This does not check whether the memory reading crosses boundaries
 	if (GET_PRIV(core.CSTR) == 0b0) {
 		// Kernel checks
-		bool validRead = (addr >= SYS_LIB && addr <= SYS_LIB_LIMIT) || (addr >= KERN_START && addr <= KERN_STACK_LIMIT);
+		bool validRead = (addr >= SYS_LIB && addr <= SYS_LIB_LIMIT) || (addr >= KERN_START && addr <= KERN_STACK_LIMIT) || 
+				(addr >= EVT_START && addr <= EVT_LIMIT);
 
 		if (!validRead) { *memerr = MEMERR_KERN_SECT_READ; return 0; }
 	} else {
@@ -44,15 +47,15 @@ uint32_t _memRead(uint32_t addr, unsigned width, memerr_t* memerr) {
 		if (invalidProcRead || invalidSectRead) { *memerr = MEMERR_USER_SECT_READ; return 0; }
 	}
 
-	dDebug(DB_DETAIL, "Reading from 0x%x with width %d", addr, width);
+	dDebug(DB_TRACE, "Reading from 0x%x with width %d", addr, width);
 	uint32_t val = 0x00000000;
 
 	val = *(emMem + addr+3);
-	dDebug(DB_DETAIL, "Byte 0x%x", val);
+	dDebug(DB_TRACE, "Byte 0x%x", val);
 	for (int i = width-2; i >= 0; i--) {
 		// Check that addr+i is not crossing boundaries
 		uint32_t newaddr = addr+i;
-		dDebug(DB_DETAIL, "Reading from new address 0x%x", newaddr);
+		dDebug(DB_TRACE, "Reading from new address 0x%x", newaddr);
 		if (GET_PRIV(core.CSTR) == 0b0) {
 			// Began in sys libs, crossing over to reserved or EVT
 			bool overreadSyslib = (newaddr == SYS_LIB_LIMIT+1) || (newaddr == SYS_LIB-1);
@@ -73,9 +76,9 @@ uint32_t _memRead(uint32_t addr, unsigned width, memerr_t* memerr) {
 			if (overreadHeap || overreadStack || overreadBss || overreadSyslib) { *memerr = MEMERR_USER_OVERREAD; return val; }
 		}
 		val = (val<<8) + (*(emMem + (addr+i)));
-		dDebug(DB_DETAIL, "Byte 0x%x -> 0x%x", *(emMem+newaddr), val);
+		dDebug(DB_TRACE, "Byte 0x%x -> 0x%x", *(emMem+newaddr), val);
 	}
-	dDebug(DB_DETAIL, "Returning 0x%x", val);
+	dDebug(DB_TRACE, "Returning 0x%x", val);
 	return val;
 }
 
@@ -101,7 +104,7 @@ memerr_t _memWrite(uint32_t addr, uint32_t data, unsigned width) {
 		if (invalidConstWrite) return MEMERR_USER_CONST_WRITE;
 	}
 
-	dDebug(DB_DETAIL, "Writing 0x%x to 0x%x with width %d", data, addr, width);
+	dDebug(DB_TRACE, "Writing 0x%x to 0x%x with width %d", data, addr, width);
 	uint8_t* _data = (uint8_t*)&data;
 
 	*(emMem + addr) = _data[0];

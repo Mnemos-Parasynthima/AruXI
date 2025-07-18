@@ -14,6 +14,7 @@ extern core_t core;
 extern opcode_t imap[];
 extern char* istrmap[];
 extern SigMem* sigMem;
+extern PS* userPS;
 
 extern pthread_mutex_t idleLock;
 extern pthread_cond_t idleCond;
@@ -32,8 +33,26 @@ static void fault() {
 	} else dLog(D_NONE, DSEV_WARN, "Was not able to set fault signal!");
 }
 
+static void exception(uint16_t excpNum) {
+	dLog(D_NONE, DSEV_INFO, "Exception 0x%x!", excpNum);
+
+	// CPU saves IR, save to PS->IR
+	userPS->ir = core.IR;
+	core.IR = 0x00040000;
+
+	// Place exception number
+	core.ESR = excpNum;
+
+	// Change mode to kernel
+	core.CSTR &= ~(1<<9);
+
+	core.status = STAT_EXCP;
+}
 
 static void fetch() {
+	// Reset state for new cycle if exception
+	if (core.status == STAT_EXCP) core.status = STAT_RUNNING;
+
 	// Instructions cannot be 0
 	FetchCtx.instrbits = 0x00000000;
 
@@ -46,7 +65,6 @@ static void fetch() {
 	if (err != MEMERR_NONE) {
 		if (GET_PRIV(core.CSTR) == 0b1) {
 			// user code attempted to access elsewhere, run EVT
-			// TODO: Need to work out EVT stuff
 			switch (err) {
 				case MEMERR_USER_SECT_READ:
 					dLog(D_NONE, DSEV_WARN, "User code attempted to access outside of its Process Address Space or System Libraries");
@@ -57,6 +75,7 @@ static void fetch() {
 				default:
 					break;
 			}
+			exception(EXCPN_ABORT_ACCESS);
 		} else {
 			dLog(D_NONE, DSEV_WARN, "Kernel code attempted to access outside of permissible range!");
 			fault();
@@ -224,20 +243,21 @@ static void nextIR() {
 }
 
 static void decode() {
+	if (core.status == STAT_EXCP) return;
+
 	uint8_t opcode = (FetchCtx.instrbits >> 24) & 0xff;
 	opcode_t code = imap[opcode];
 	FetchCtx.opcode = code;
 
 	dLog(D_NONE, DSEV_INFO, "decode::Opcode: 0x%x; code %d -> %s", opcode, code, (code != OP_ERROR) ? istrmap[code] : "OP_ERROR");
 
-	// TODO: EVT for user code, kill for kernel code
 	// Invalid instruction
 	if (code == OP_ERROR) {
 		dLog(D_NONE, DSEV_WARN, "Invalid instruction: 0x%x!", opcode);
 		if (GET_PRIV(core.CSTR) == 0b0) { // Kill for kernel code
 			fault();
 		} else { // EVT for user code
-
+			exception(EXCPN_ABORT_INSTR);
 		}
 	}
 
@@ -284,18 +304,19 @@ static void decode() {
 		dLog(D_NONE, DSEV_INFO, "OP_SYS -> %s (opcode %d)", (subcode != OP_ERROR) ? istrmap[subcode] : "OP_ERROR", subcode);
 
 		if (subcode == OP_ERROR) {
+			dLog(D_NONE, DSEV_WARN, "Invalid instruction: 0x%x!", subcode);
 			if (GET_PRIV(core.CSTR) == 0b0) { // Kill for kernel code
-				dLog(D_NONE, DSEV_WARN, "Invalid instruction: 0x%x!", subcode);
 				fault();
 			} else { // EVT for user code
-				
+				exception(EXCPN_ABORT_INSTR);
 			}
 		}
 
 		if (subcode != OP_SYSCALL) {
 			// Syscall is the only S-type that is unprivileged (for now??), the rest are privileged
 			if (GET_PRIV(core.CSTR) == 0b1) {
-				// EVT
+				dLog(D_NONE, DSEV_WARN, "Used privileged instruction 0x%x!", subcode);
+				exception(EXCPN_ABORT_PRIV);
 			}
 		}
 
@@ -325,6 +346,8 @@ static void decode() {
 }
 
 static void execute() {
+	if (core.status == STAT_EXCP) return;
+
 	ExecuteCtx.aluVala = DecodeCtx.vala;
 	
 	if (DecodeCtx.iType == I_TYPE || DecodeCtx.iType == M_TYPE) ExecuteCtx.aluValb = DecodeCtx.imm;
@@ -365,6 +388,8 @@ static void execute() {
 }
 
 static void memory() {
+	if (core.status == STAT_EXCP) return;
+
 	// if (FetchCtx.opcode >= OP_STR && FetchCtx.opcode <= OP_STRH) {
 	// 	Mem
 	// }
@@ -384,33 +409,65 @@ static void memory() {
 		fault();
 	}
 
-	if (err != MEMERR_NONE && GET_PRIV(core.CSTR) == 0b0) {
-		switch (err) {
-			case MEMERR_KERN_OVERFLOW:
-				dLog(D_NONE, DSEV_WARN, "Detected kernel overflow!");
-				break;
-			case MEMERR_KERN_OVERREAD:
-				dLog(D_NONE, DSEV_WARN, "Detected kernel overread!");
-				break;
-			case MEMERR_KERN_STACK_OVERFLOW:
-				dLog(D_NONE, DSEV_WARN, "Detected kernel stack overflow!");
-				break;
-			case MEMERR_KERN_HEAP_OVERFLOW:
-				dLog(D_NONE, DSEV_WARN, "Detected kernel heap overflow!");
-				break;
-			case MEMERR_KERN_TEXT_WRITE:
-				dLog(D_NONE, DSEV_WARN, "Detected kernel writing to text!");
-				break;
-			case MEMERR_KERN_SECT_WRITE:
-				dLog(D_NONE, DSEV_WARN, "Detected kernel writing to invalid memory!");
-				break;
-			case MEMERR_KERN_SECT_READ:
-				dLog(D_NONE, DSEV_WARN, "Detected kernel reading from invalid memory!");
-				break;
-			default:
-				break;
+	if (err != MEMERR_NONE) {
+		if (GET_PRIV(core.CSTR) == 0b0) {
+			switch (err) {
+				case MEMERR_KERN_OVERFLOW:
+					dLog(D_NONE, DSEV_WARN, "Detected kernel overflow!");
+					break;
+				case MEMERR_KERN_OVERREAD:
+					dLog(D_NONE, DSEV_WARN, "Detected kernel overread!");
+					break;
+				case MEMERR_KERN_STACK_OVERFLOW:
+					dLog(D_NONE, DSEV_WARN, "Detected kernel stack overflow!");
+					break;
+				case MEMERR_KERN_HEAP_OVERFLOW:
+					dLog(D_NONE, DSEV_WARN, "Detected kernel heap overflow!");
+					break;
+				case MEMERR_KERN_TEXT_WRITE:
+					dLog(D_NONE, DSEV_WARN, "Detected kernel writing to text!");
+					break;
+				case MEMERR_KERN_SECT_WRITE:
+					dLog(D_NONE, DSEV_WARN, "Detected kernel writing to invalid memory!");
+					break;
+				case MEMERR_KERN_SECT_READ:
+					dLog(D_NONE, DSEV_WARN, "Detected kernel reading from invalid memory!");
+					break;
+				default:
+					break;
+			}
+			fault();
+		} else {
+			switch (err) {
+				case MEMERR_USER_OVERFLOW:
+					dLog(D_NONE, DSEV_WARN, "Detected user overflow!");
+					break;
+				case MEMERR_USER_OVERREAD:
+					dLog(D_NONE, DSEV_WARN, "Detected user overread!");
+					break;
+				case MEMERR_USER_STACK_OVERFLOW:
+					dLog(D_NONE, DSEV_WARN, "Detected user stack overflow!");
+					break;
+				case MEMERR_USER_HEAP_OVERFLOW:
+					dLog(D_NONE, DSEV_WARN, "Detected user heap overflow!");
+					break;
+				case MEMERR_USER_TEXT_WRITE:
+					dLog(D_NONE, DSEV_WARN, "Detected user writing to text!");
+					break;
+				case MEMERR_USER_CONST_WRITE:
+					dLog(D_NONE, DSEV_WARN, "Detected user writing to const!");
+					break;
+				case MEMERR_USER_SECT_WRITE:
+					dLog(D_NONE, DSEV_WARN, "Detected user writing to invalid memory!");
+					break;
+				case MEMERR_USER_SECT_READ:
+					dLog(D_NONE, DSEV_WARN, "Detected user reading from invalid memory!");
+					break;
+				default:
+					break;
+			}
+			exception(EXCPN_ABORT_ACCESS);
 		}
-		fault();
 	}
 
 
@@ -471,6 +528,7 @@ void* runCore(void* _) {
 	while (true) {
 		pthread_mutex_lock(&idleLock);
 		if (!IDLE) {
+			#include <unistd.h>
 			dLog(D_NONE, DSEV_INFO, "\nCycle %d", runningCycles);
 			fetch();
 			decode();
@@ -481,18 +539,41 @@ void* runCore(void* _) {
 			// viewCoreState();
 
 			// In case of an infinite loop or something, limit how much it can cycle for
-			if (runningCycles > 85) core.status = STAT_HLT;
+			if (runningCycles > 140) core.status = STAT_HLT;
 
 			// When needed, add condition on running cycles
 			if (core.status == STAT_HLT) {
 				IDLE = true;
-				pthread_cond_signal(&idleCond);
 
-				// shell is the only one waiting on program exit
-				// update SIG_EXIT
-				// Note that on first run (kernel code is ran), setting SIG_EXIT will not matter
-				signal_t* sig = GET_SIGNAL(sigMem->signals, SHELL_CPU_SIG);
-				sig->interrupts = SIG_SET(sig->interrupts, emSIG_EXIT_IDX);
+				// Check if normal halt or abort halt for user programs
+				if (userPS) {
+					excp_t _exception = userPS->excpType;
+					dDebug(DB_DETAIL, "Size of excp_t: %d", sizeof(excp_t));
+
+					if (_exception != EXCP_SYSCALL) {
+						dLog(D_NONE, DSEV_INFO, "Detected abort fault...");
+						// write(STDOUT_FILENO, "Abort fault\n", 12);
+
+						// Send SIG_FAULT to emulator
+						signal_t* sig = GET_SIGNAL(sigMem->signals, EMU_CPU_SIG);
+						setFaultSignal(sig);
+						kill(sigMem->metadata.emulatorPID, SIGUSR1);
+
+						// Block until emulator acks
+						uint8_t ackd = 0x0;
+						while (ackd != 0x1) ackd = SIG_GET(sig->ackMask, emSIG_FAULT_IDX);
+
+						// Send SIG_ERROR to shell
+						sig = GET_SIGNAL(sigMem->signals, SHELL_CPU_SIG);
+						setErrorSignal(sig);
+						kill(sigMem->metadata.shellPID, SIGUSR1);
+					} else { // for syscall, if any, continue
+						// shell is the only one waiting on program exit
+						// update SIG_EXIT
+						signal_t* sig = GET_SIGNAL(sigMem->signals, SHELL_CPU_SIG);
+						sig->interrupts = SIG_SET(sig->interrupts, emSIG_EXIT_IDX);
+					}
+				} else pthread_cond_signal(&idleCond);
 
 				// Reset cycles???
 				runningCycles = 0;

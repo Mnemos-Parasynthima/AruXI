@@ -558,12 +558,21 @@ int main(int argc, char const* argv[]) {
 		// Wait for the program to finish before continuing
 		if (act == SH_RUN) {
 			dDebug(DB_BASIC, "Waiting for program to exit...");
-			uint8_t exited = 0x0;
-			while (exited != 0x1) exited = SIG_GET(shellCPUSig->interrupts, emSIG_EXIT_IDX);
-			dDebug(DB_BASIC, "Program has exited");
-			dLog(D_NONE, DSEV_INFO, "Program exited.");
-
-			shellCPUSig->interrupts = SIG_CLR(shellCPUSig->interrupts, emSIG_EXIT_IDX);
+			uint8_t exitedClean = 0x0;
+			uint8_t exitedError = 0x0;
+			while (exitedClean != 0x1 && exitedError != 0x1) {
+				exitedClean = SIG_GET(shellCPUSig->interrupts, emSIG_EXIT_IDX);
+				exitedError= SIG_GET(shellCPUSig->interrupts, emSIG_ERROR_IDX);
+			}
+			if (exitedClean) {
+				dDebug(DB_BASIC, "Program has exited");
+				dLog(D_NONE, DSEV_INFO, "Program exited.");
+				shellCPUSig->interrupts = SIG_CLR(shellCPUSig->interrupts, emSIG_EXIT_IDX);
+			} else {
+				dDebug(DB_BASIC, "Program faulted");
+				dLog(D_NONE, DSEV_WARN, "Program has faulted. Check logs and coredump.");
+				shellCPUSig->interrupts = SIG_CLR(shellCPUSig->interrupts, emSIG_ERROR_IDX);
+			}
 		}
 
 		if (act == SH_EXIT)	break;

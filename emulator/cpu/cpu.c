@@ -25,6 +25,7 @@ core_t core;
 uint8_t* emMem;
 SigMem* sigMem;
 opcode_t imap[1<<8];
+PS* userPS;
 
 pthread_mutex_t idleLock = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t idleCond = PTHREAD_COND_INITIALIZER;
@@ -85,7 +86,8 @@ char* istrmap[] = {
 	"OP_IRET",
 	"OP_LDIR",
 	"OP_MVCSTR",
-	"OP_LDCSTR"
+	"OP_LDCSTR",
+	"OP_RESR"
 };
 
 void handleSIGSEGV(int signum) {
@@ -145,6 +147,10 @@ void handleSIGUSR1(int signum) {
 					// No need to set PRIV as it ended as kernel
 					core.IR = sig->metadata.execprog.entry;
 					core.status = STAT_RUNNING;
+					// Get the user PS, as of now, stored 4 bytes into data section
+					uint32_t _psPtr = KERN_DATA + 0x4;
+					uint8_t* psPtr = emMem + _psPtr;
+					userPS = (PS*) psPtr;
 					// Resume core
 					pthread_mutex_lock(&idleLock);
 					IDLE = false;
@@ -293,6 +299,7 @@ int main(int argc, char const* argv[]) {
 	core.IR = entry;
 	core.SP = KERN_STACK_LIMIT;
 	core.CSTR = SET_PRIV(0, core.CSTR); // set to kernel mode
+	core.ESR = 0x0000;
 
 	dLog(D_NONE, DSEV_INFO, "Setting up..running kernel at 0x%x...", entry);
 

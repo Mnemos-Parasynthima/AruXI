@@ -53,7 +53,14 @@ void alu() {
 	ExecuteCtx.alures = res;
 
 	if (DecodeCtx.setCC) {
+		bool C = false;
+		bool O = false;
+		bool N = res == 0;
+		bool Z = res;
 
+
+		core.CSTR |= SET_CONDS(C,O,N,Z);
+		
 	}
 }
 

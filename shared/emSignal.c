@@ -139,7 +139,14 @@ int ackLoadSignal(signal_t* signal) {
 }
 
 
-int setErrorSignal(signal_t* signal) { return 0; }
+int setErrorSignal(signal_t* signal) { 
+	uint8_t enable = SIG_GET(signal->intEnable, emSIG_ERROR_IDX);
+	if (enable != 1) return -1;
+
+	signal->interrupts = SIG_SET(signal->interrupts, emSIG_ERROR_IDX);
+
+	return SIG_GET(signal->interrupts, emSIG_ERROR_IDX);
+}
 
 int ackErrorSignal(signal_t* signal) { return 0; }
 
