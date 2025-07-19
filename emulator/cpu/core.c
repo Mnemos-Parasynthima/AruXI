@@ -14,7 +14,8 @@ extern core_t core;
 extern opcode_t imap[];
 extern char* istrmap[];
 extern SigMem* sigMem;
-extern PS* userPS;
+extern uint8_t* emMem;
+PS* userPS;
 
 extern pthread_mutex_t idleLock;
 extern pthread_cond_t idleCond;
@@ -36,8 +37,14 @@ static void fault() {
 static void exception(uint16_t excpNum) {
 	dLog(D_NONE, DSEV_INFO, "Exception 0x%x!", excpNum);
 
+	uint32_t __psPtr = KERN_DATA + 0x4; // The virtual address where the pointer to PS is stored
+	uint8_t* _psPtr = emMem + __psPtr; // The real address where the pointer to PS is stored
+	uint32_t psPtr = *((uint32_t*)_psPtr); // The virtual address of PS
+	userPS = (PS*) (emMem + psPtr);
+
 	// CPU saves IR, save to PS->IR
 	userPS->ir = core.IR;
+
 	core.IR = 0x00040000;
 
 	// Place exception number
@@ -97,7 +104,7 @@ void extractImm() {
 	int32_t imm = 0x0;
 
 	if (opcode >= OP_NOP && opcode <= OP_CMP) {
-		if (((((FetchCtx.instrbits >> 24) & 0xff) & 0b1) == 0b0) && (opcode <= OP_MUL || opcode >= OP_SDIV)) {
+		if (((((FetchCtx.instrbits >> 24) & 0xff) & 0b1) == 0b0) && (opcode < OP_MUL || opcode > OP_SDIV)) {
 			imm = imm14; // I-types
 			type = I_TYPE;
 		} else type = R_TYPE;
@@ -209,6 +216,30 @@ void decideALUOp() {
 	DecodeCtx.aluop = aluop;
 }
 
+static bool checkCondition() {
+	cond_t cond = (cond_t) u32bitextract(FetchCtx.instrbits, 0, 4);
+
+	dLog(D_NONE, DSEV_INFO, "Checking condition 0x%x", cond);
+	dLog(D_NONE, DSEV_INFO, "Status 0x%x", core.CSTR);
+
+	switch (cond)	{
+		case COND_EQ: return GET_Z(core.CSTR) == 1;
+		case COND_NE: return GET_Z(core.CSTR) == 0;
+		case COND_OV: return GET_O(core.CSTR) == 1;
+		case COND_NV: return GET_O(core.CSTR) == 0;
+		case COND_MI: return GET_N(core.CSTR) == 1;
+		case COND_PZ: return GET_N(core.CSTR) == 0;
+		case COND_CC: return GET_C(core.CSTR) == 0;
+		case COND_CS: return GET_C(core.CSTR) == 1;
+		case COND_GT: return GET_N(core.CSTR) == GET_O(core.CSTR) && GET_Z(core.CSTR) == 0;
+		case COND_GE: return GET_N(core.CSTR) == GET_O(core.CSTR);
+		case COND_LT: return GET_N(core.CSTR) != GET_O(core.CSTR);
+		case COND_LE: return GET_N(core.CSTR) != GET_O(core.CSTR) || GET_Z(core.CSTR) != 0;
+	}
+
+	return false;
+}
+
 static void nextIR() {
 	// UB only needs imm and IR, all execution happens here
 	// UBR/RET only needs to have value of xd from regfile, all execution happens here
@@ -239,7 +270,10 @@ static void nextIR() {
 	}
 
 	// else BCOND
-	if (ExecuteCtx.cond) core.IR = (core.IR-4) + ((DecodeCtx.imm & 0x7ffff) << 2);
+	if (ExecuteCtx.cond) {
+		dLog(D_NONE, DSEV_INFO, "Condition true. Branching");
+		core.IR = (core.IR-4) + ((DecodeCtx.imm & 0x7ffff) << 2);
+	}
 }
 
 static void decode() {
@@ -328,6 +362,7 @@ static void decode() {
 
 	DecodeCtx.regwrite = false;
 	DecodeCtx.memwrite = false;
+	ExecuteCtx.cond = false;
 
 	if (DecodeCtx.iType == I_TYPE || DecodeCtx.iType == R_TYPE || (FetchCtx.opcode >= OP_LD && FetchCtx.opcode <= OP_LDHZ) || 
 		FetchCtx.opcode == OP_CALL || (FetchCtx.opcode >= OP_LDIR && FetchCtx.opcode <= OP_RESR)) DecodeCtx.regwrite = true;
@@ -335,6 +370,13 @@ static void decode() {
 
 	if (FetchCtx.opcode >= OP_STR && FetchCtx.opcode <= OP_STRH) MemoryCtx.write = true;
 	else MemoryCtx.write = false;
+
+	if (FetchCtx.opcode == OP_ADDS || FetchCtx.opcode == OP_SUBS || FetchCtx.opcode == OP_CMP) DecodeCtx.setCC = true;
+
+	if (FetchCtx.opcode == OP_B) {
+		ExecuteCtx.cond = checkCondition();
+		dLog(D_NONE, DSEV_INFO, "Condition marked as %d", ExecuteCtx.cond);
+	}
 
 	decideALUOp();
 	dLog(D_NONE, DSEV_INFO, "decode::ALU OP: %s", ALUOP_STR[DecodeCtx.aluop]);
@@ -548,14 +590,13 @@ void* runCore(void* _) {
 				// Check if normal halt or abort halt for user programs
 				if (userPS) {
 					excp_t _exception = userPS->excpType;
-					dDebug(DB_DETAIL, "Size of excp_t: %d", sizeof(excp_t));
 
 					if (_exception != EXCP_SYSCALL) {
 						dLog(D_NONE, DSEV_INFO, "Detected abort fault...");
-						// write(STDOUT_FILENO, "Abort fault\n", 12);
 
 						// Send SIG_FAULT to emulator
-						signal_t* sig = GET_SIGNAL(sigMem->signals, EMU_CPU_SIG);
+						signal_t* sig = GET_SIGNAL(sigMem->signals, UNIVERSAL_SIG);
+						sigMem->metadata.signalType = UNIVERSAL_SIG;
 						setFaultSignal(sig);
 						kill(sigMem->metadata.emulatorPID, SIGUSR1);
 
@@ -566,7 +607,6 @@ void* runCore(void* _) {
 						// Send SIG_ERROR to shell
 						sig = GET_SIGNAL(sigMem->signals, SHELL_CPU_SIG);
 						setErrorSignal(sig);
-						kill(sigMem->metadata.shellPID, SIGUSR1);
 					} else { // for syscall, if any, continue
 						// shell is the only one waiting on program exit
 						// update SIG_EXIT

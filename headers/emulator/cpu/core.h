@@ -12,10 +12,10 @@ typedef enum status {
 	STAT_EXCP
 } status_t;
 
-typedef struct VectorRegister {
+typedef struct __attribute__((packed)) VectorRegister {
 	union {
 		uint64_t _v64[8];
-		uint32_t _v32[4];
+		uint32_t _v32[16];
 	};
 } vec_reg_t;
 
@@ -35,18 +35,19 @@ typedef enum ExceptionNumber {
 	EXCPN_ABORT_PRIV = 0b1110
 } excp_n;
 
-typedef struct UserProcessThreadState {
+typedef struct __attribute__((packed)) UserProcessThreadState {
 	uint8_t tid;
 } PTS;
 
-typedef struct UserProcessState {
+typedef struct __attribute__((packed)) UserProcessState {
 	uint8_t pid;
 	uint8_t threadc;
-	PTS** threadStates;
+	// PTS** threadStates; // Since normal pointers are 8 bytes but pointers in the Aru architecture are 4, need to replace with uint32
+	uint32_t threadStates;
 	uint32_t sp;
 	uint32_t ir;
-	uint32_t cstr;
-	uint32_t esr;
+	uint16_t cstr;
+	uint16_t esr;
 	uint32_t gpr[25];
 	float fpr[16];
 	vec_reg_t vr[6];

@@ -70,7 +70,18 @@ typedef enum opcode {
 } opcode_t;
 
 typedef enum cond {
-	COND_EQ
+	COND_EQ,
+	COND_NE,
+	COND_OV,
+	COND_NV,
+	COND_MI,
+	COND_PZ,
+	COND_CC,
+	COND_CS,
+	COND_GT,
+	COND_GE,
+	COND_LT,
+	COND_LE
 } cond_t;
 
 typedef enum aluOP {

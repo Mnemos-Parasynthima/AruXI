@@ -53,14 +53,33 @@ void alu() {
 	ExecuteCtx.alures = res;
 
 	if (DecodeCtx.setCC) {
+		dLog(D_NONE, DSEV_INFO, "Setting condition");
 		bool C = false;
 		bool O = false;
-		bool N = res == 0;
-		bool Z = res;
+		bool N = (res & 0x80000000) == 0;
+		bool Z = res == 0;
 
 
-		core.CSTR |= SET_CONDS(C,O,N,Z);
-		
+		C = res < vala || res < valb;
+
+		int32_t signedVala = (int32_t) vala;
+		int32_t signedValb = (int32_t) valb;
+		int32_t signedRes = signedVala + signedValb;
+
+		// Check overflow for substraction
+		if (DecodeCtx.aluop == ALU_MINUS) {
+			signedRes = signedVala - signedValb;
+
+			if (signedVala > 0 && signedValb < 0 && signedRes > 0) O = true;
+			if (vala >= valb) C = true;
+			else if (signedVala < 0 && signedValb > 0 && signedRes < 0) O = true;
+		} else { // for addition
+			if (signedVala >= 0 && signedValb >= 0 && signedRes <= 0) O = true;
+			else if (signedVala < 0 && signedValb < 0 && signedRes >= 0) O = true;
+		}
+
+		core.CSTR = (core.CSTR & ~0xF) | (SET_CONDS(C,O,N,Z) & 0xF);
+		dLog(D_NONE, DSEV_INFO, "Flags: 0x%x", SET_CONDS(C,O,N,Z));
 	}
 }
 
