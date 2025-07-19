@@ -82,7 +82,7 @@ char* istrmap[] = {
 	"OP_HLT",
 	"OP_SI",
 	"OP_DI",
-	"OP_IRET",
+	"OP_ERET",
 	"OP_LDIR",
 	"OP_MVCSTR",
 	"OP_LDCSTR",
@@ -294,7 +294,7 @@ int main(int argc, char const* argv[]) {
 	// Set up
 	core.IR = entry;
 	core.SP = KERN_STACK_LIMIT;
-	core.CSTR = SET_PRIV(0, core.CSTR); // set to kernel mode
+	core.CSTR = SET_PRIV(core.CSTR); // set to kernel mode
 	core.ESR = 0x0000;
 
 	dLog(D_NONE, DSEV_INFO, "Setting up..running kernel at 0x%x...", entry);

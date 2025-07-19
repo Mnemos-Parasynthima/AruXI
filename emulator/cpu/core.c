@@ -51,7 +51,7 @@ static void exception(uint16_t excpNum) {
 	core.ESR = excpNum;
 
 	// Change mode to kernel
-	core.CSTR &= ~(1<<9);
+	core.CSTR = SET_PRIV(core.CSTR);
 
 	core.status = STAT_EXCP;
 }
@@ -70,7 +70,7 @@ static void fetch() {
 	core.IR += 4;
 
 	if (err != MEMERR_NONE) {
-		if (GET_PRIV(core.CSTR) == 0b1) {
+		if (GET_PRIV(core.CSTR) != PRIVILEGE_KERNEL) {
 			// user code attempted to access elsewhere, run EVT
 			switch (err) {
 				case MEMERR_USER_SECT_READ:
@@ -274,6 +274,11 @@ static void nextIR() {
 		dLog(D_NONE, DSEV_INFO, "Condition true. Branching");
 		core.IR = (core.IR-4) + ((DecodeCtx.imm & 0x7ffff) << 2);
 	}
+
+	if (FetchCtx.opcode == OP_ERET) {
+		dLog(D_NONE, DSEV_INFO, "Returning from exception");
+		core.IR = userPS->ir;
+	}
 }
 
 static void decode() {
@@ -288,7 +293,7 @@ static void decode() {
 	// Invalid instruction
 	if (code == OP_ERROR) {
 		dLog(D_NONE, DSEV_WARN, "Invalid instruction: 0x%x!", opcode);
-		if (GET_PRIV(core.CSTR) == 0b0) { // Kill for kernel code
+		if (GET_PRIV(core.CSTR) == PRIVILEGE_KERNEL) { // Kill for kernel code
 			fault();
 		} else { // EVT for user code
 			exception(EXCPN_ABORT_INSTR);
@@ -327,7 +332,7 @@ static void decode() {
 			case 0b00110: subcode = OP_HLT; break;
 			case 0b01010: subcode = OP_SI; break;
 			case 0b01110: subcode = OP_DI; break;
-			case 0b10010: subcode = OP_IRET; break;
+			case 0b10010: subcode = OP_ERET; break;
 			case 0b10110: subcode = OP_LDIR; break;
 			case 0b11010: subcode = OP_MVCSTR; break;
 			case 0b11110: subcode = OP_LDCSTR; break;
@@ -339,7 +344,7 @@ static void decode() {
 
 		if (subcode == OP_ERROR) {
 			dLog(D_NONE, DSEV_WARN, "Invalid instruction: 0x%x!", subcode);
-			if (GET_PRIV(core.CSTR) == 0b0) { // Kill for kernel code
+			if (GET_PRIV(core.CSTR) == PRIVILEGE_KERNEL) { // Kill for kernel code
 				fault();
 			} else { // EVT for user code
 				exception(EXCPN_ABORT_INSTR);
@@ -348,7 +353,7 @@ static void decode() {
 
 		if (subcode != OP_SYSCALL) {
 			// Syscall is the only S-type that is unprivileged (for now??), the rest are privileged
-			if (GET_PRIV(core.CSTR) == 0b1) {
+			if (GET_PRIV(core.CSTR) != PRIVILEGE_KERNEL) {
 				dLog(D_NONE, DSEV_WARN, "Used privileged instruction 0x%x!", subcode);
 				exception(EXCPN_ABORT_PRIV);
 			}
@@ -452,7 +457,7 @@ static void memory() {
 	}
 
 	if (err != MEMERR_NONE) {
-		if (GET_PRIV(core.CSTR) == 0b0) {
+		if (GET_PRIV(core.CSTR) == PRIVILEGE_KERNEL) {
 			switch (err) {
 				case MEMERR_KERN_OVERFLOW:
 					dLog(D_NONE, DSEV_WARN, "Detected kernel overflow!");
@@ -576,12 +581,19 @@ void* runCore(void* _) {
 			decode();
 			execute();
 			memory();
+
+			if (FetchCtx.opcode == OP_ERET) {
+				core.CSTR = userPS->cstr;
+				// Saved CSTR contains the mode bit to kernel mode, reset it
+				core.CSTR = CLR_PRIV(core.CSTR);
+			}
+
 			runningCycles++;
 
 			// viewCoreState();
 
 			// In case of an infinite loop or something, limit how much it can cycle for
-			if (runningCycles > 140) core.status = STAT_HLT;
+			if (runningCycles > 250) core.status = STAT_HLT;
 
 			// When needed, add condition on running cycles
 			if (core.status == STAT_HLT) {

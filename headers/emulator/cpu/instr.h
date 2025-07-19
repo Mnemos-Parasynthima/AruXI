@@ -60,7 +60,7 @@ typedef enum opcode {
 	OP_HLT,
 	OP_SI,
 	OP_DI,
-	OP_IRET,
+	OP_ERET,
 	OP_LDIR,
 	OP_MVCSTR,
 	OP_LDCSTR,

@@ -71,7 +71,7 @@ typedef struct Core {
 	| 15 | 14 | 13 | 12 | 11 | 10 | 9 | 8 | 7 | 6 | 5 | 4 | 3 | 2 | 1 | 0 |
 	| -  | A  | -  | -  | -  | -  | L | - | - | I | - | - | C | O | N | Z |
 	A: Whether the AVExt is enabled
-	L: The privilege level; 1 for user; 0 for kernel
+	L: The privilege level; 0 for user; 1 for kernel
 	I: If interrupts are enabled
 	C: Carry flag
 	O: Overflow flag
@@ -80,9 +80,11 @@ typedef struct Core {
 */
 
 #define SET_CONDS(C,O,N,Z) ((C<<3)|(O<<2)|(N<<1)|(Z<<0))
-#define SET_INT(I,bits) ((I<<6) | bits)
-#define SET_PRIV(L,bits) ((L<<9) | bits)
-#define SET_AVE(A,bits) ((A<<14) | bits)
+#define SET_INT(bits) (bits | (1<<6))
+#define CLR_INT(bits) (bits & ~(1<<6))
+#define SET_PRIV(bits) (bits | (1<<9))
+#define CLR_PRIV(bits) (bits & ~(1<<9))
+#define SET_AVE(bits) (bits | (1<<14))
 
 #define GET_C(flags) ((flags>>3) & 0b1)
 #define GET_O(flags) ((flags>>2) & 0b1)
@@ -92,8 +94,12 @@ typedef struct Core {
 #define GET_PRIV(flags) ((flags>>9) & 0b1)
 #define GET_AVE(flags) ((flags>>14) & 0b1)
 
+#define INTERRUPTS_ENABLE 0b1
+#define PRIVILEGE_KERNEL 0b1
+#define AVEXT_ENABLE 0b1
+
+
 void initCore();
 void* runCore(void*);
-
 
 #endif

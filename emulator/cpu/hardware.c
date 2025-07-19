@@ -34,6 +34,7 @@ void alu() {
 			break;
 		case ALU_INV:
 			res = ~vala;
+			break;
 		case ALU_LSL:
 			res = vala << valb;
 			break;
@@ -159,7 +160,7 @@ void regfile(bool write) {
 }
 
 void imem(uint32_t addr, uint32_t* ival, memerr_t* imemErr) {
-	if (GET_PRIV(core.CSTR) == 0b0) *imemErr = validKIMemAddr(addr); // Kernel mode
+	if (GET_PRIV(core.CSTR) == PRIVILEGE_KERNEL) *imemErr = validKIMemAddr(addr); // Kernel mode
 	else *imemErr = validUIMemAddr(addr);
 
 	if (*imemErr != MEMERR_NONE) return;

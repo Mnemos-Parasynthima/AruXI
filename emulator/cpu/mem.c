@@ -33,7 +33,7 @@ memerr_t validUIMemAddr(uint32_t addr) {
 uint32_t _memRead(uint32_t addr, unsigned width, memerr_t* memerr) {
 	// Check that the given address is in a permissible starting point
 	// This does not check whether the memory reading crosses boundaries
-	if (GET_PRIV(core.CSTR) == 0b0) {
+	if (GET_PRIV(core.CSTR) == PRIVILEGE_KERNEL) {
 		// Kernel checks
 		bool validRead = (addr >= SYS_LIB && addr <= SYS_LIB_LIMIT) || (addr >= KERN_START && addr <= KERN_STACK_LIMIT) || 
 				(addr >= EVT_START && addr <= EVT_LIMIT);
@@ -56,7 +56,7 @@ uint32_t _memRead(uint32_t addr, unsigned width, memerr_t* memerr) {
 		// Check that addr+i is not crossing boundaries
 		uint32_t newaddr = addr+i;
 		dDebug(DB_TRACE, "Reading from new address 0x%x", newaddr);
-		if (GET_PRIV(core.CSTR) == 0b0) {
+		if (GET_PRIV(core.CSTR) == PRIVILEGE_KERNEL) {
 			// Began in sys libs, crossing over to reserved or EVT
 			bool overreadSyslib = (newaddr == SYS_LIB_LIMIT+1) || (newaddr == SYS_LIB-1);
 			// Began in kernel space, crossing over to IVT (wrap around) or buffer
@@ -85,7 +85,7 @@ uint32_t _memRead(uint32_t addr, unsigned width, memerr_t* memerr) {
 memerr_t _memWrite(uint32_t addr, uint32_t data, unsigned width) {
 	// Check that the given address is in a permissible starting point
 	// This does not check whether the memory writing crosses boundaries
-	if (GET_PRIV(core.CSTR) == 0b0) {
+	if (GET_PRIV(core.CSTR) == PRIVILEGE_KERNEL) {
 		// Kernel checks
 		bool invalidWrite = (addr < KERN_DATA); // writing outside kernel space
 		if (invalidWrite) return MEMERR_KERN_SECT_WRITE;
@@ -111,7 +111,7 @@ memerr_t _memWrite(uint32_t addr, uint32_t data, unsigned width) {
 	for (int i = 1; i < width; i++) {
 		// Check that addr+i is not crossing boundaries
 		uint32_t newaddr = addr+i;
-		if (GET_PRIV(core.CSTR) == 0b0) {
+		if (GET_PRIV(core.CSTR) == PRIVILEGE_KERNEL) {
 			// Began in data, crossing over to text (and from heap), to buffer, or wrap around to IVT from stack
 			bool overwrite = (newaddr == KERN_TEXT) || (newaddr == KERN_HEAP-1) || (newaddr == KERN_START-1) || (newaddr == 0x0);
 			if (overwrite) return MEMERR_KERN_OVERFLOW;
