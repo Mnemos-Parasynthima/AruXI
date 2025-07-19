@@ -74,9 +74,9 @@ _setPS:
 	% set up the process state
 
 	% get memory for the process state
-	% PS takes up 298 bytes (maybe???)
+	% PS takes up 570 bytes
 
-	mv a0, #298
+	mv a0, #570
 	% save LR
 	sub sp, sp, #4
 	str lr, [sp]
@@ -86,17 +86,15 @@ _setPS:
 	add sp, sp, #4
 	% xr contains pointer to memory block for PS
 	% save it
-	ld c1, =KERN_PS
+	ld c1, =PS_PTR
 	str xr, [c1]
 
-	mv c0, #0x0 % ignore PIDs for now
-	str xz, [xr]
-	str xz, [xr, #0x1] % no threads for now
-	str xz, [xr, #0x2] % no threads
+	strb xz, [xr] % ignore PIDs for now; PS.pid
+	strb xz, [xr, #0x1] % no threads for now; PS.threadc
+	str xz, [xr, #0x2] % no threads; PS.threadStates
 	ld c1, =USR_STACK_START
-	str c1, [xr, #0x3] % user sp
-	str x1, [xr, #0x7] % user ir
-	% save registers
+	str c1, [xr, #0x6] % user sp; PS.sp
+	str x1, [xr, #10] % user ir; PS.ir
 
 	ret
 
@@ -104,11 +102,11 @@ _setPS:
 _destroyPS:
 	% destroy the process state
 	% basically just free the memory from pointer
-	ld a0, =KERN_PS % get the stored PS pointer
-	mv a1, #298
+	ld a0, =PS_PTR % get the stored PS pointer
+	mv a1, #570
 	call _kfree
 
-	% "null" KERN_PS
+	% "null" PS_PTR
 	str xz, [a0]
 
 	ret
@@ -148,10 +146,134 @@ _kfree:
 
 
 
+
+	%% EVT HANDLERS %%
+	_writeHndlr:
+	nop
+	eret
+
+	_readHndlr:
+	nop
+	eret
+
+
+	_excpHndlr0:
+	_excpHndlr1:
+	_excpHndlr2:
+	% for now, place non-0 in PS.excpType
+	ld c1, PS_PTR
+	mv c2, #0b01 % DATA ABORT
+	mv c0, #566
+	strb c2, [c1], c0
+	hlt
+
+
 .data
 	KERN_HEAPTOP: .word HEAP_START
-	KERN_PS: .word 0x0
+	PS_PTR: .word 0x0
 
 	KERN_STATE:
 		% Saved sp of the kernel stack to return after user program
-		KERN_STATE_SP: .word STACK_LIMIT 
+		KERN_STATE_SP: .word STACK_LIMIT
+
+
+
+
+
+.evt
+	EVT_START:
+	% save cpu context
+	ld c1, PS_PTR % note that Cx are truly volatile, meaning no piece of code can assume Cx are safe from overwriting	
+	% ir was saved by cpu
+	% PS->sp
+	str sp, [c1, #0x6]
+
+	ldcstr c0
+	str c0, [c1, #14]
+
+	% PS->grp[i]
+	str x0, [c1, #18]
+	str x1, [c1, #22]
+	str x2, [c1, #26]
+	str x3, [c1, #30]
+	str x4, [c1, #34]
+	str x5, [c1, #38]
+	str x6, [c1, #42]
+	str x7, [c1, #46]
+	str x8, [c1, #50]
+	str x9, [c1, #54]
+	str x10, [c1, #58]
+	str x11, [c1, #62]
+	str x17, [c1, #66]
+	str x18, [c1, #70]
+	str x19, [c1, #74]
+	str x20, [c1, #78]
+	str x21, [c1, #82]
+	str x22, [c1, #86]
+	str x23, [c1, #90]
+	str x24, [c1, #94]
+	str x25, [c1, #98]
+	str x26, [c1, #102]
+	str x27, [c1, #106]
+	str x28, [c1, #110]
+	str x29, [c1, #114]
+
+
+	% get the offset based off on exception number
+	resr c0
+
+	% if RESR is 0x0, it is a syscall, refer to a0 for offset
+	% else if it an exception, use the RESR contents
+	cmp c0, #0x0
+	bne offsetFromExecp
+
+	% offset into table is done as follows:
+	% IR := EVT_BASE + SIZE_OF_HEADER_CODE + (INDEX * SIZE_OF_EVT_ENTRY)
+
+
+	offsetFromSyscall:
+	mv c0, a0
+
+	offsetFromExecp:
+	% as is
+
+	calculateOffset:
+	mv c4, #8
+	mul c2, c0, c4 % INDEX * SIZE_OF_EVT_ENTRY (8 bytes)
+	add c2, c2, HEADER_CODE_SIZE % + SIZE_OF_HEADER_CODE
+	ld c1, =#0x00040000
+	add c2, c2, c1 % + EVT_BASE
+
+	ld c0, [c2]
+	ubr c0
+	.set HEADER_CODE_SIZE, @-EVT_START + 4
+
+	%% BEGIN EVT %%
+	.byte 0b00000000 % syscall for read
+	.hword 0x0000 % unused
+	.byte 0x00 % unused
+	.word _writeHndlr
+
+	.byte 0b00000001 % syscall for write
+	.hword 0x0000
+	.byte 0x00
+	.word _readHndlr
+
+	% an entry is 8 bytes, 10 entries between write and first exception, 10 * 8 = 90
+	.zero 80
+	% ....
+
+	.byte 0b01001100 % exception for invalid access
+	.hword 0x0000 % unused
+	.byte 0x00 % unused
+	.word _excpHndlr0
+
+	.byte 0b10001101 % exception for invalid instruction
+	.hword 0x0000 % unused
+	.byte 0x00 % unused
+	.word _excpHndlr1
+
+	.byte 0b01001110 % exception for privilege use
+	.hword 0x0000 % unused
+	.byte 0x00 % unused
+	.word _excpHndlr2
