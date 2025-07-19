@@ -48,10 +48,12 @@ _usrSetup:
 	ld sp, =USR_STACK_START-#0x4
 
 	% switch to user mode, this needs to be done right before the call
+	% CSTR = CSTR & ~(1<<9)
 	ldcstr x10
 	mv x11, #0x1
 	lsl x11, x11, #9 % PRIV flag is in bit 9
-	or x10, x10, x11
+	not x11, x11
+	and x10, x10, x11
 	mvcstr x10
 	ubr c1 % run user program
 
@@ -156,6 +158,9 @@ _kfree:
 	nop
 	eret
 
+	_exitHndlr:
+	hlt
+
 
 	_excpHndlr0:
 	_excpHndlr1:
@@ -221,6 +226,8 @@ _kfree:
 
 	% get the offset based off on exception number
 	resr c0
+	% save it as well
+	str c0, [c1, #16]
 
 	% if RESR is 0x0, it is a syscall, refer to a0 for offset
 	% else if it an exception, use the RESR contents
@@ -259,8 +266,13 @@ _kfree:
 	.byte 0x00
 	.word _readHndlr
 
-	% an entry is 8 bytes, 10 entries between write and first exception, 10 * 8 = 90
-	.zero 80
+	.byte 0b00000010
+	.hword 0x0000
+	.byte 0x00
+	.word _exitHndlr
+
+	% an entry is 8 bytes, 9 entries between write and first exception, 10 * 8 = 90
+	.zero 72
 	% ....
 
 	.byte 0b01001100 % exception for invalid access
