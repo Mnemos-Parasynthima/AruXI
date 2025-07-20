@@ -38,11 +38,8 @@ _usrSetup:
 	ld c1, [sp]
 	% c1 contains the entry point, before a simulated call, set the link register so
 	% on user return, it comes back here
-	ldir c2 % get the IR contents
-	% IR is for the following instruction as on fetch after ldir, the advancing by 4 is done already
-	add c2, c2, #8
 	% save the instruction after ubr
-	mv lr, c2
+	ld lr, =USER_RET_AT
 
 	% set the user stack pointer
 	ld sp, =USR_STACK_START-#0x4
@@ -56,7 +53,7 @@ _usrSetup:
 	and x10, x10, x11
 	mvcstr x10
 	ubr c1 % run user program
-
+	.set USER_RET_AT @
 	% restore sp
 	ld sp, KERN_STATE_SP
 	% return value of user program is in xr
@@ -159,6 +156,19 @@ _kfree:
 	eret
 
 	_exitHndlr:
+	% basic exit
+	% restore sp
+	ld sp, KERN_STATE_SP
+	% return value of user program is in xr
+	sub sp, sp, #4
+	str xr, [sp]
+
+	% remove PS
+	call _destroyPS
+
+	ld xr, [sp]
+	add sp, sp, #4
+
 	hlt
 
 
