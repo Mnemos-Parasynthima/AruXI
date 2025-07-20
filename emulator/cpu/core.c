@@ -43,6 +43,11 @@ static void exception(uint16_t excpNum) {
 	userPS = (PS*) (emMem + psPtr);
 
 	// CPU saves IR, save to PS->IR
+	// Note that IR saved is actually at the next instruction due to core.IR++ right after fetching
+	// and all exceptions occur after
+	// This is helpful for syscalls where it needs to return to the next instruction (after `syscall`)
+	// However, should it be an abort, the dump IR is the next (+4)
+	// or even a very different one if the abort occurs after `setIR`
 	userPS->ir = core.IR;
 
 	core.IR = 0x00040000;
@@ -563,7 +568,7 @@ void viewCoreState() {
 		core.GPR[18], core.GPR[19], core.GPR[20], core.GPR[21], core.GPR[22], core.GPR[23],
 		core.GPR[24], core.GPR[25], core.GPR[26], core.GPR[27], core.GPR[28], core.GPR[29]);
 
-	fflush(stdout);
+	// fflush(stdout);
 }
 
 void* runCore(void* _) {

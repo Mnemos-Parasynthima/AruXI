@@ -59,20 +59,59 @@ static void handleLoadSignal(signal_t* emuShellSig) {
 static void handleFaultSignal(signal_t* emuCPUSig) {
 	// Only time emulator gets fault signal is on user abort exception
 	// Do a "coredump"
-	uint32_t _psPtr = KERN_DATA + 0x4;
-	uint8_t* psPtr = emulatedMemory + _psPtr;
+	uint32_t ___psPtr = KERN_DATA + 0x4; // The virtual address where the pointer to PS is stored
+	uint8_t* __psPtr = emulatedMemory + ___psPtr; // The real address where the pointer to PS is stored
+	uint32_t _psPtr = *((uint32_t*)__psPtr); // The virtual address of PS
+	uint8_t* psPtr = (((uint8_t*)emulatedMemory) + _psPtr);
 	// Unlike in cpu/core, emulator does not know the structure of PS
 	// No need to do an unncessary "import"
 	// Just go with offsets :)
 
-	uint32_t userSP = *((uint32_t*)(psPtr + 0x6));
+	uint8_t userPID = *((uint8_t*)(psPtr + 0));
+	uint8_t userThreadc = *((uint8_t*)(psPtr + 1));
+	// userThreadStates
+	uint32_t userSP = *((uint32_t*)(psPtr + 6));
 	uint32_t userIR = *((uint32_t*)(psPtr + 10));
 	uint16_t userCSTR = *((uint16_t*)(psPtr + 14));
 	uint16_t userESR = *((uint16_t*)(psPtr + 16));
 	uint32_t* userGPR = (uint32_t*)(psPtr + 18);
-	uint8_t userExcpType = *(psPtr + 278);
+	float* userFPR = (float*)(psPtr + 118);
+	// userVr
+	uint8_t userExcpType = *(psPtr + 566);
 
+	FILE* dump = fopen("iaru0.admp", "w");
+	if (!dump) {
+		dLog(D_ERR_IO, DSEV_WARN, "Could not open dump file");
+		signalsMemory->metadata.signalType = UNIVERSAL_SIG;
+		signal_t* sig = GET_SIGNAL(signalsMemory->signals, UNIVERSAL_SIG);
+		setFaultSignal(sig);
 
+		kill(signalsMemory->metadata.cpuPID, SIGUSR1);
+		kill(signalsMemory->metadata.shellPID, SIGUSR1);
+		exit(-1);
+	}
+
+	fprintf(dump, "PID: %d\nThreadc: %d\nSP: 0x%x\nIR: 0x%x\nCSTR: 0x%x\nESR: 0x%x\n",
+		userPID, userThreadc, userSP, userIR, userCSTR, userESR);
+
+	fprintf(dump,
+		"X0/A0/XR: 0x%x\nX1/A1: 0x%x\nX2/A2: 0x%x\nX3/A3: 0x%x\nX4/A4: 0x%x\nX5/A5: 0x%x\nX6/A6: 0x%x\nX7/A7: 0x%x\nX8/A8: 0x%x\nX9/A9: 0x%x\n",
+		userGPR[0], userGPR[1], userGPR[2], userGPR[3], userGPR[4], userGPR[5], userGPR[6], userGPR[7], userGPR[8], userGPR[9]
+	);
+
+	fprintf(dump,
+		"X10: 0x%x\nX11: 0x%x\nX12/C0: 0x--\nX13/C1: 0x--\nX14/C2: 0x--\nX15/C3: 0x--\nX16/C4: 0x--\nX17/S0: 0x%x\nX18/S1: 0x%x\nX19/S2: 0x%x\n",
+		userGPR[10], userGPR[11], /*userGPR[2], userGPR[3], userGPR[4], userGPR[5], userGPR[6], */userGPR[12], userGPR[13], userGPR[14]
+	);
+
+	fprintf(dump,
+		"X20/S3: 0x%x\nX21/S4: 0x%x\nX22/S5: 0x%x\nX23/S6: 0x%x\nX24/S7: 0x%x\nX25/S8: 0x%x\nX26/S9: 0x%x\nX27/S10: 0x%x\nX28/LR: 0x%x\nX29/XB: 0x%x\n",
+		userGPR[15], userGPR[16], userGPR[17], userGPR[18], userGPR[19], userGPR[20], userGPR[21], userGPR[22], userGPR[23], userGPR[24]
+	);
+
+	fprintf(dump, "excpType: %s", (userExcpType == 0b00) ? "SYSCALL" : ((userExcpType == 0b01) ? "DATA ABORT" : "FETCH ABORT"));
+
+	fclose(dump);
 
 	emuCPUSig->ackMask = SIG_SET(emuCPUSig->ackMask, emSIG_FAULT_IDX);
 }
