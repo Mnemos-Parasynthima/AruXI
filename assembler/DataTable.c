@@ -131,7 +131,7 @@ static void displayDataEntry(data_entry_t* dataEntry) {
 	debug("\t\tType: %s\n", typeStr);
 	debug("\t\tAddress: 0x%x\n", dataEntry->addr);
 	debug("\t\tSize: 0x%x\n", dataEntry->size);
-	debug("\t\tSource: %s\n", dataEntry->source);
+	debug("\t\tSource: %s\n\n", dataEntry->source);
 	// debug("\t\tData: %s\n", dataEntry->data);
 }
 

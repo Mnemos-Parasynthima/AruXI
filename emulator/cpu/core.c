@@ -2,6 +2,7 @@
 #include <signal.h>
 #include <sys/types.h>
 #include <pthread.h>
+// #include <unistd.h>
 
 #include "core.h"
 #include "mem.h"
@@ -73,6 +74,7 @@ static void fetch() {
 	imem(core.IR, &FetchCtx.instrbits, &err);
 
 	core.IR += 4;
+	dDebug(DB_DETAIL, "Fetched from 0x%x, automatically increment to 0x%x", core.IR-4, core.IR);
 
 	if (err != MEMERR_NONE) {
 		if (GET_PRIV(core.CSTR) != PRIVILEGE_KERNEL) {
@@ -264,7 +266,9 @@ static void nextIR() {
 			dLog(D_NONE, DSEV_INFO, "execute::call val a: 0x%x; val b: 0x%x; rd: %d", ExecuteCtx.aluVala, ExecuteCtx.aluValb, DecodeCtx.rd);
 		}
 		// IR += 4 was done automatically after imem, reverse it
-		core.IR = (core.IR-4) + ((DecodeCtx.imm & 0xffffff) << 2);
+		dDebug(DB_DETAIL, "Extracted call imm: 0x%x -> shifted: 0x%x", DecodeCtx.imm&0xffffff, (DecodeCtx.imm&0xffffff)<<2);
+		dDebug(DB_DETAIL, "Adding to 0x%x", core.IR-4);
+		core.IR = (core.IR-4) + (((int32_t)(((DecodeCtx.imm & 0xffffff) << 2) << 9)) >> 9);
 		return;
 	}
 
@@ -398,6 +402,8 @@ static void decode() {
 }
 
 static void execute() {
+	if (FetchCtx.opcode == OP_SYSCALL) exception(core.GPR[0]);
+
 	if (core.status == STAT_EXCP) return;
 
 	ExecuteCtx.aluVala = DecodeCtx.vala;
@@ -419,6 +425,7 @@ static void execute() {
 		// Else is aluValb = imm, which can be done in earlier code
 	}
 
+	dDebug(DB_DETAIL, "Current IR: 0x%x", core.IR);
 	nextIR();
 	dLog(D_NONE, DSEV_INFO, "execute::Next IR: 0x%x", core.IR);
 	dLog(D_NONE, DSEV_INFO, "execute::ALU Val a: 0x%x; ALU Val b: 0x%x;", ExecuteCtx.aluVala, ExecuteCtx.aluValb);
@@ -580,7 +587,6 @@ void* runCore(void* _) {
 	while (true) {
 		pthread_mutex_lock(&idleLock);
 		if (!IDLE) {
-			#include <unistd.h>
 			dLog(D_NONE, DSEV_INFO, "\nCycle %d", runningCycles);
 			fetch();
 			decode();
@@ -602,6 +608,7 @@ void* runCore(void* _) {
 
 			// When needed, add condition on running cycles
 			if (core.status == STAT_HLT) {
+				dLog(D_NONE, DSEV_INFO, "Going idle");
 				IDLE = true;
 
 				// Check if normal halt or abort halt for user programs

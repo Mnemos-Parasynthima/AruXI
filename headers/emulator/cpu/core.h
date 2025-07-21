@@ -28,6 +28,7 @@ typedef enum ExceptionType {
 typedef enum ExceptionNumber {
 	EXCPN_SYSCALL_READ = 0b0000,
 	EXCPN_SYSCALL_WRITE = 0b0001,
+	EXCPN_SYSCALL_EXIT = 0b0010,
 
 
 	EXCPN_ABORT_ACCESS = 0b1100,

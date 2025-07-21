@@ -136,10 +136,10 @@ _kfree:
 	% a0: ptr
 	% a1: size (temporary until more structured memory allocation)
 
-	ld c0, =KERN_HEAPTOP
-	ld c1, [c0]
-	sub c1, c1, a1
-	str c1, [c0]
+	ld c1, =KERN_HEAPTOP
+	ld c2, [c1]
+	sub c2, c2, a1
+	str c2, [c1]
 
 	ret
 
