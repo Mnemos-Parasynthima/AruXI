@@ -69,13 +69,14 @@ _usrSetup:
 	hlt
 
 
+.set PS_SIZE, 570
 _setPS:
 	% set up the process state
 
 	% get memory for the process state
 	% PS takes up 570 bytes
 
-	mv a0, #570
+	mv a0, PS_SIZE
 	% save LR
 	sub sp, sp, #4
 	str lr, [sp]
@@ -102,7 +103,7 @@ _destroyPS:
 	% destroy the process state
 	% basically just free the memory from pointer
 	ld a0, =PS_PTR % get the stored PS pointer
-	mv a1, #570
+	mv a1, PS_SIZE
 	call _kfree
 
 	% "null" PS_PTR
@@ -147,15 +148,64 @@ _kfree:
 
 
 	%% EVT HANDLERS %%
-	_writeHndlr:
+	.set STDOUT, 0
+_writeHndlr:
+	% _write(uint32_t count, const char* buffer)
+
+	% get memory for struct
+	% takes up 12 bytes
+
+	sub sp, sp, #8
+	str lr, [sp]
+	str a0, [sp, #4]
+
+	mv a0, #12
+	call _kmalloc
+	mv x10, xr
+
+	ld a0, [sp, #4]
+	ld lr, [sp]
+	add sp, sp, #4
+
+	% refer to documentation for structure layout
+	mv c0, STDOUT
+	str c0, [x10, #0] % fd
+	str a0, [x10, #4] % count
+	str a1, [x10, #8] % buffer
+
+	% in order to tell the cpu IO request, use CSTR bit 13
+	% CSTR = CSTR | (1<<13)
+	ldcstr c0
+	mv c1, #1
+	lsl c1, c1, #13
+	or c0, c0, c1
+	mvcstr c0
+	hlt
+
+	% clear bit
+	% it is guaranteed registers are not changed
+	not c1, c1
+	and c0, c0, c1
+	mvcstr c0
+	% bit 13 should be cleared
+
+	% free memory
+	mv a0, a1
+	mv a1, #12
+	sub sp, sp, #4
+	str lr, [sp]
+	call _kfree
+	ld lr, [sp]
+	add sp, sp, #4
+
+	eret
+
+	.set STDIN, 1
+_readHndlr:
 	nop
 	eret
 
-	_readHndlr:
-	nop
-	eret
-
-	_exitHndlr:
+_exitHndlr:
 	% basic exit
 	% restore sp
 	ld sp, KERN_STATE_SP
@@ -172,9 +222,9 @@ _kfree:
 	hlt
 
 
-	_excpHndlr0:
-	_excpHndlr1:
-	_excpHndlr2:
+_excpHndlr0:
+_excpHndlr1:
+_excpHndlr2:
 	% for now, place non-0 in PS.excpType
 	ld c1, PS_PTR
 	mv c2, #0b01 % DATA ABORT
@@ -269,19 +319,19 @@ _kfree:
 	.byte 0b00000000 % syscall for read
 	.hword 0x0000 % unused
 	.byte 0x00 % unused
-	.word _writeHndlr
+	.word _readHndlr
 
 	.byte 0b00000001 % syscall for write
 	.hword 0x0000
 	.byte 0x00
-	.word _readHndlr
+	.word _writeHndlr
 
 	.byte 0b00000010
 	.hword 0x0000
 	.byte 0x00
 	.word _exitHndlr
 
-	% an entry is 8 bytes, 9 entries between write and first exception, 10 * 8 = 90
+	% an entry is 8 bytes, 9 entries between write and first exception, 9 * 8 = 72
 	.zero 72
 	% ....
 
