@@ -234,14 +234,13 @@ static void encodeBiBc(instr_obj_t* instr, SymbolTable* symbTable) {
 	char* expr = ops[0];
 
 	bool canEval = true;
-	int32_t simm = eval(expr, symbTable, &canEval);
+	uint32_t imm = eval(expr, symbTable, &canEval);
 	if (!canEval) handleError(ERR_INVALID_EXPRESSION, FATAL, "Could not evaluate label %s!\n", expr);
-	if (simm % 4 != 0) handleError(ERR_INVALID_EXPRESSION, FATAL, "Immediate %x is not aligned to 4!\n", simm);
+	if (imm % 4 != 0) handleError(ERR_INVALID_EXPRESSION, FATAL, "Immediate %x is not aligned to 4!\n", imm);
 
-	// The encoding of the jump is (@ - IMM) / 4
+	// The encoding of the jump is (IMM - @) / 4
 	uint32_t addr = instr->addr;
-	// Use the correct difference depending whether the target address is higher than current or not
-	uint32_t diff = (addr > simm) ? (addr-simm) : (simm-addr);
+	int32_t diff = imm - addr;
 	int32_t offset = (diff) / 4;
 
 	uint8_t shift = 0x0;
@@ -249,15 +248,15 @@ static void encodeBiBc(instr_obj_t* instr, SymbolTable* symbTable) {
 	if (strcasecmp(instrStr, VALID_INSTRUCTIONS[UB]) == 0) opcode = 0b11000000;
 	else if (strcasecmp(instrStr, VALID_INSTRUCTIONS[CALL]) == 0) opcode = 0b11000110;
 	else if (*instrStr == 'b') { //b{cond}
-		if ((offset & 0x80000L) != 0x0) handleError(ERR_INVALID_SIZE, FATAL, "Offset %x exceeds allowed size!\n", offset);
+		if (offset < -(1 << 18) || offset >= (1 << 18)) handleError(ERR_INVALID_SIZE, FATAL, "Offset %x exceeds allowed size!\n", offset);
 		opcode = 0b11000100;
 		shift = 5;
 		cond = getConditionEncoding(instrStr+1);
 	}
 
-	if ((offset & 0xf000000L) != 0x0) handleError(ERR_INVALID_SIZE, FATAL, "Offset %x exceeds allowed size!\n", offset);
+	if (offset < -(1 << 23) || offset >= (1 << 23)) handleError(ERR_INVALID_SIZE, FATAL, "Offset %x exceeds allowed size!\n", offset);
 
-	encoding = (opcode << 24) | (offset << shift) | (cond);
+	encoding = (opcode << 24) | ((offset&0xffffff) << shift) | (cond);
 	instr->encoding = encoding;
 }
 
