@@ -63,6 +63,8 @@ static uint32_t getImmediateEncoding(char* imm, SymbolTable* symbTable, enum Imm
 
 	// Ensure sizes are appropriate
 	switch (size)	{
+		case SIMM9:
+			if (res < -(1 << 8) || res >= (1 << 8)) handleError(ERR_INVALID_SIZE, FATAL, "Immediate %d exceeds allowed size of SIMM9!\n", res);
 		case IMM14:
 			if ((res & 0xc000L) != 0x0) handleError(ERR_INVALID_SIZE, FATAL, "Immediate %d exceeds allowed size of IMM14!\n", res);
 		case SIMM24:
@@ -243,20 +245,22 @@ static void encodeBiBc(instr_obj_t* instr, SymbolTable* symbTable) {
 	int32_t diff = imm - addr;
 	int32_t offset = (diff) / 4;
 
-	uint8_t shift = 0x0;
 	uint8_t cond = 0x0;
-	if (strcasecmp(instrStr, VALID_INSTRUCTIONS[UB]) == 0) opcode = 0b11000000;
-	else if (strcasecmp(instrStr, VALID_INSTRUCTIONS[CALL]) == 0) opcode = 0b11000110;
-	else if (*instrStr == 'b') { //b{cond}
+
+	if (*instrStr == 'b') { // b{cond}
 		if (offset < -(1 << 18) || offset >= (1 << 18)) handleError(ERR_INVALID_SIZE, FATAL, "Offset %x exceeds allowed size!\n", offset);
 		opcode = 0b11000100;
-		shift = 5;
 		cond = getConditionEncoding(instrStr+1);
+		offset = (offset & 0x7ffff) << 5;
+	} else {
+		if (strcasecmp(instrStr, VALID_INSTRUCTIONS[UB]) == 0) opcode = 0b11000000;
+		else if (strcasecmp(instrStr, VALID_INSTRUCTIONS[CALL]) == 0) opcode = 0b11000110;
+		
+		if (offset < -(1 << 23) || offset >= (1 << 23)) handleError(ERR_INVALID_SIZE, FATAL, "Offset %x exceeds allowed size!\n", offset);
+		offset &= 0xffffff;
 	}
 
-	if (offset < -(1 << 23) || offset >= (1 << 23)) handleError(ERR_INVALID_SIZE, FATAL, "Offset %x exceeds allowed size!\n", offset);
-
-	encoding = (opcode << 24) | ((offset&0xffffff) << shift) | (cond);
+	encoding = (opcode << 24) | offset | cond;
 	instr->encoding = encoding;
 }
 
