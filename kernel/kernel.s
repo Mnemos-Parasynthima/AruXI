@@ -90,11 +90,14 @@ _setPS:
 	str xr, [c1]
 
 	strb xz, [xr] % ignore PIDs for now; PS.pid
-	strb xz, [xr, #0x1] % no threads for now; PS.threadc
-	str xz, [xr, #0x2] % no threads; PS.threadStates
+	strb xz, [xr, #1] % no threads for now; PS.threadc
+	str xz, [xr, #2] % no threads; PS.threadStates
 	ld c1, =USR_STACK_START
-	str c1, [xr, #0x6] % user sp; PS.sp
+	str c1, [xr, #6] % user sp; PS.sp
 	str x1, [xr, #10] % user ir; PS.ir
+
+	mv c2, #566 % offset is too large for mem ops (9 bits), use index mode
+	str xz, [xr], c2 % excpType
 
 	ret
 
@@ -104,7 +107,12 @@ _destroyPS:
 	% basically just free the memory from pointer
 	ld a0, =PS_PTR % get the stored PS pointer
 	mv a1, PS_SIZE
+
+	sub sp, sp, #4
+	str lr, [sp]
 	call _kfree
+	ld lr, [sp]
+	add sp, sp, #4
 
 	% "null" PS_PTR
 	str xz, [a0]
@@ -198,12 +206,50 @@ _writeHndlr:
 	ld lr, [sp]
 	add sp, sp, #4
 
-	eret
+	ub HNDLR_END
+
 
 	.set STDIN, 1
 _readHndlr:
 	nop
+
+	ub HNDLR_END
+
+
+
+HNDLR_END:
+	ld c1, PS_PTR
+
+	% restore
+	ld sp, [c1, #6]
+	ld x0, [c1, #18]
+	ld x1, [c1, #22]
+	ld x2, [c1, #26]
+	ld x3, [c1, #30]
+	ld x4, [c1, #34]
+	ld x5, [c1, #38]
+	ld x6, [c1, #42]
+	ld x7, [c1, #46]
+	ld x8, [c1, #50]
+	ld x9, [c1, #54]
+	ld x10, [c1, #58]
+	ld x11, [c1, #62]
+	ld x17, [c1, #66]
+	ld x18, [c1, #70]
+	ld x19, [c1, #74]
+	ld x20, [c1, #78]
+	ld x21, [c1, #82]
+	ld x22, [c1, #86]
+	ld x23, [c1, #90]
+	ld x24, [c1, #94]
+	ld x25, [c1, #98]
+	ld x26, [c1, #102]
+	ld x27, [c1, #106]
+	ld x28, [c1, #110]
+	ld x29, [c1, #114]
+
 	eret
+
 
 _exitHndlr:
 	% basic exit
@@ -222,8 +268,15 @@ _exitHndlr:
 	hlt
 
 
-_excpHndlr0:
 _excpHndlr1:
+	% for now, place non-0 in PS.excpType
+	ld c1, PS_PTR
+	mv c2, #0b10 % FETCH ABORT
+	mv c0, #566
+	strb c2, [c1], c0
+	hlt
+
+_excpHndlr0:
 _excpHndlr2:
 	% for now, place non-0 in PS.excpType
 	ld c1, PS_PTR
@@ -251,7 +304,10 @@ _excpHndlr2:
 	ld c1, PS_PTR % note that Cx are truly volatile, meaning no piece of code can assume Cx are safe from overwriting	
 	% ir was saved by cpu
 	% PS->sp
-	str sp, [c1, #0x6]
+	str sp, [c1, #6]
+
+	% restore kernel sp
+	ld sp, KERN_STATE_SP
 
 	ldcstr c0
 	str c0, [c1, #14]
