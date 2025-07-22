@@ -17,6 +17,7 @@
 #include "shmem.h"
 #include "loader.h"
 #include "sigHeap.h"
+#include "backend-os.h"
 
 
 #define KERN_START 0xA0080000 
@@ -35,7 +36,6 @@ void* emulatedMemory;
  * 
  */
 static void handleLoadSignal(signal_t* emuShellSig) {
-	write(STDOUT_FILENO, "handleLoadSignal\n", 17);
 	char* filename = (char*) offsetToPtr(emuShellSig->metadata.loadprog.programOffset);
 
 	uint32_t userEntry = loadBinary(filename, emulatedMemory);
@@ -116,6 +116,29 @@ static void handleFaultSignal(signal_t* emuCPUSig) {
 	emuCPUSig->ackMask = SIG_SET(emuCPUSig->ackMask, emSIG_FAULT_IDX);
 }
 
+static void handleSysSignal(signal_t* emuCPUSig) {
+	io_md* data = (io_md*) (emulatedMemory + emuCPUSig->metadata.syscall.ioReq.kerneldataPtr);
+	
+	char* buffer = (char*) (emulatedMemory + data->buffer);
+
+	switch (data->fd)	{
+		case ARU_STDOUT:
+			ruWrite((const char*) buffer, data->count);
+			break;
+		case ARU_STDIN:
+			ruRead(buffer, data->count);
+			break;
+		default:
+			break;
+	}
+
+
+	// Let CPU know
+	signalsMemory->metadata.signalType = EMU_CPU_SIG;
+	emuCPUSig->ackMask = SIG_SET(emuCPUSig->ackMask, emSIG_SYS_IDX);
+	kill(signalsMemory->metadata.cpuPID, SIGUSR1);
+}
+
 /**
  * Handle SIGUSR1. SIGUSR1 indicates as a poke to tell the process to check the signal memory.
  * @param signum 
@@ -141,6 +164,11 @@ void handleSIGUSR1(int signum) {
 				case emSIG_FAULT_IDX:
 					write(STDOUT_FILENO, "Emulator detected SIG_FAULT\n", 28);
 					handleFaultSignal(sig);
+					break;
+				case emSIG_SYS_IDX:
+					write(STDOUT_FILENO, "Emulator detected SIG_SYS\n", 26);
+					handleSysSignal(sig);
+					break;
 				default:
 					break;
 			}

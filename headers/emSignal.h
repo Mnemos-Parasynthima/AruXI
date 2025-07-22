@@ -8,10 +8,9 @@
 #define emSIG_SHUTDOWN 0x80000000
 #define emSIG_FAULT 0x40000000
 #define emSIG_READY 0x20000000
-#define emSIG_CPU_SAVED 0x2000
+#define emSIG_SYS 0x4000
 #define emSIG_CPU_SAVE 0x1000
 #define emSIG_LOAD 0x80
-#define emSIG_SAVE 0x40
 #define emSIG_ERROR 0x8
 #define emSIG_EXIT 0x4
 #define emSIG_KILL 0x2
@@ -20,10 +19,9 @@
 #define emSIG_SHUTDOWN_IDX 31
 #define emSIG_FAULT_IDX 30
 #define emSIG_READY_IDX 29
-#define emSIG_CPU_SAVED_IDX 13
+#define emSIG_SYS_IDX 14
 #define emSIG_CPU_SAVE_IDX 12
 #define emSIG_LOAD_IDX 7
-#define emSIG_SAVE_IDX 6
 #define emSIG_ERROR_IDX 3
 #define emSIG_EXIT_IDX 2
 #define emSIG_KILL_IDX 1
@@ -54,14 +52,16 @@ typedef struct ExecprogMetadata {
 	uint32_t entry;
 } execprog_md;
 
-typedef struct SyscallreqMetadata {
-
-} syscallReq_md;
+typedef union SyscallMetadata {
+	struct {
+		uint32_t kerneldataPtr;
+	} ioReq;
+} syscall_md;
 
 typedef union PayloadMetadata {
 	loadprog_md loadprog;
 	execprog_md execprog;
-	syscallReq_md syscalReq;
+	syscall_md syscall;
 } pd_metadata;
 
 typedef struct Signal {
@@ -101,7 +101,11 @@ int setReadySignal(signal_t* signal);
 int ackReadySignal(signal_t* signal);
 
 // CPU-Emulator signals
+int setSysSignal(signal_t* signal, syscall_md* metadata);
+int ackSysSignal(signal_t* signal);
 
+int setCPUSaveSignal(signal_t* signal);
+int ackCPUSaveSignal(signal_t* signal);
 
 // Shell-Emulator signals
 int setLoadSignal(signal_t* signal, loadprog_md* metadata);

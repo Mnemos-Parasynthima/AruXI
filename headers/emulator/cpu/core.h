@@ -9,7 +9,8 @@
 typedef enum status {
 	STAT_HLT,
 	STAT_RUNNING,
-	STAT_EXCP
+	STAT_EXCP,
+	STAT_IO
 } status_t;
 
 typedef struct __attribute__((packed)) VectorRegister {

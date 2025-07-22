@@ -266,8 +266,6 @@ static void nextIR() {
 			dLog(D_NONE, DSEV_INFO, "execute::call val a: 0x%x; val b: 0x%x; rd: %d", ExecuteCtx.aluVala, ExecuteCtx.aluValb, DecodeCtx.rd);
 		}
 		// IR += 4 was done automatically after imem, reverse it
-		dDebug(DB_DETAIL, "Extracted call imm: 0x%x -> shifted: 0x%x", DecodeCtx.imm&0xffffff, (DecodeCtx.imm&0xffffff)<<2);
-		dDebug(DB_DETAIL, "Adding to 0x%x", core.IR-4);
 		core.IR = (core.IR-4) + (((int32_t)(((DecodeCtx.imm & 0xffffff) << 2) << 9)) >> 9);
 		return;
 	}
@@ -425,7 +423,7 @@ static void execute() {
 		// Else is aluValb = imm, which can be done in earlier code
 	}
 
-	dDebug(DB_DETAIL, "Current IR: 0x%x", core.IR);
+	dDebug(DB_TRACE, "Current IR: 0x%x", core.IR);
 	nextIR();
 	dLog(D_NONE, DSEV_INFO, "execute::Next IR: 0x%x", core.IR);
 	dLog(D_NONE, DSEV_INFO, "execute::ALU Val a: 0x%x; ALU Val b: 0x%x;", ExecuteCtx.aluVala, ExecuteCtx.aluValb);
@@ -440,7 +438,11 @@ static void execute() {
 
 	if (FetchCtx.opcode >= OP_STR && FetchCtx.opcode <= OP_STRH) MemoryCtx.valmem = DecodeCtx.valex;
 
-	if (FetchCtx.opcode == OP_HLT) core.status = STAT_HLT;
+	if (FetchCtx.opcode == OP_HLT) {
+		// HALT can either be a normal halt or an IO halt, depending on bit 13 of CSTR
+		if (((core.CSTR >> 13) & 0b1) == 0b1) core.status = STAT_IO;
+		else core.status = STAT_HLT;
+	}
 
 	// fpu();
 	// vcu();
@@ -604,9 +606,8 @@ void* runCore(void* _) {
 			// viewCoreState();
 
 			// In case of an infinite loop or something, limit how much it can cycle for
-			if (runningCycles > 250) core.status = STAT_HLT;
+			if (runningCycles > 500) core.status = STAT_HLT;
 
-			// When needed, add condition on running cycles
 			if (core.status == STAT_HLT) {
 				dLog(D_NONE, DSEV_INFO, "Going idle");
 				IDLE = true;
@@ -641,6 +642,19 @@ void* runCore(void* _) {
 
 				// Reset cycles???
 				runningCycles = 0;
+			} else if (core.status == STAT_IO) {
+				dLog(D_NONE, DSEV_INFO, "Going idle from IO request");
+				IDLE = true;
+
+				signal_t* sig = GET_SIGNAL(sigMem->signals, EMU_CPU_SIG);
+				sigMem->metadata.signalType = EMU_CPU_SIG;
+
+				syscall_md metadata = {
+					.ioReq.kerneldataPtr = core.GPR[10]
+				};
+
+				setSysSignal(sig, &metadata);
+				kill(sigMem->metadata.emulatorPID, SIGUSR1);
 			}
 		} else {
 			pthread_mutex_unlock(&idleLock);

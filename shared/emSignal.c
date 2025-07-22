@@ -28,13 +28,13 @@ void setupSignals(SigMem* signalMemory) {
 	memset(&universalSignals->metadata, 0x0, sizeof(pd_metadata));
 	
 	emuShellSignals->interrupts = 0x0;
-	emuShellSignals->intEnable = emSIG_LOAD | emSIG_SAVE;
+	emuShellSignals->intEnable = emSIG_LOAD;
 	emuShellSignals->ackMask = 0x0;
 	emuShellSignals->payloadValid = 0x0;
 	memset(&emuShellSignals->metadata, 0x0, sizeof(pd_metadata));
 
 	emuCPUSignals->interrupts = 0x0;
-	emuCPUSignals->intEnable = emSIG_CPU_SAVE | emSIG_CPU_SAVED;
+	emuCPUSignals->intEnable = emSIG_CPU_SAVE | emSIG_SYS;
 	emuCPUSignals->ackMask = 0x0;
 	emuCPUSignals->payloadValid = 0x0;
 	memset(&emuCPUSignals->metadata, 0x0, sizeof(pd_metadata));
@@ -99,6 +99,29 @@ int ackReadySignal(signal_t* signal) {
 	signal->ackMask = SIG_SET(signal->ackMask, emSIG_READY_IDX);
 
 	return SIG_GET(signal->ackMask, emSIG_READY_IDX);
+}
+
+
+int setSysSignal(signal_t* signal, syscall_md* metadata) {
+	uint8_t enable = SIG_GET(signal->intEnable, emSIG_SYS_IDX);
+	if (enable != 1) return -1;
+
+	signal->interrupts = SIG_SET(signal->interrupts, emSIG_SYS_IDX);
+	signal->payloadValid = SIG_SET(signal->payloadValid, emSIG_SYS_IDX);
+
+	signal->metadata.syscall.ioReq.kerneldataPtr = metadata->ioReq.kerneldataPtr;
+
+	return SIG_GET(signal->interrupts, emSIG_SYS_IDX);;
+}
+
+int ackSysSignal(signal_t* signal) {
+	uint8_t enable = SIG_GET(signal->intEnable, emSIG_SYS_IDX);
+	if (enable != 1) return -1;
+
+	signal->ackMask = SIG_SET(signal->ackMask, emSIG_SYS_IDX);
+	signal->payloadValid = SIG_CLR(signal->payloadValid, emSIG_SYS_IDX);
+
+	return SIG_GET(signal->ackMask, emSIG_SYS_IDX);
 }
 
 

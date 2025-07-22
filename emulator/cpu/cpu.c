@@ -152,6 +152,16 @@ void handleSIGUSR1(int signum) {
 					IDLE = false;
 					pthread_mutex_unlock(&idleLock);
 					ackExecSignal(sig);
+				case emSIG_SYS_IDX:
+					write(STDOUT_FILENO, "CPU detected SIG_SYS (acked)\n", 29);
+					write(STDOUT_FILENO, "Resuming execution\n", 19);
+
+					core.status = STAT_RUNNING;
+
+					// Resume core
+					pthread_mutex_lock(&idleLock);
+					IDLE = false;
+					pthread_mutex_unlock(&idleLock);
 				default:
 					break;
 			}
