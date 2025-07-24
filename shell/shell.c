@@ -51,11 +51,18 @@ void handleSIGINT(int signum) {
 }
 
 void handleSIGSEGV(int signum) {
+	write(STDOUT_FILENO, "Shell got SIGSEGV'd\n", 20);
+
+	sigMem->metadata.signalType = UNIVERSAL_SIG;
+	signal_t* sig = GET_SIGNAL(sigMem->signals, UNIVERSAL_SIG);
+	setFaultSignal(sig);
+
+	kill(sigMem->metadata.cpuPID, SIGUSR1);
+
 	flushDebug();
 	munmap(sigMem->metadata.heap[SHELL_HEAP], PAGESIZE);
 	munmap(sigMem, SIG_MEM_SIZE);
 	deleteEnv();
-	write(STDOUT_FILENO, "Shell got SIGSEGV'd\n", 20);
 	exit(-1);
 }
 
@@ -83,7 +90,6 @@ void handleSIGUSR1(int signum) {
 					deleteEnv();
 					write(STDERR_FILENO, "Detected SIG_FAULT!\n", 20);
 					exit(1);
-					break;
 				case emSIG_IO_IDX:
 					switch (sig->metadata.syscall.ioData.stream) {
 						case ARU_STDIN:
@@ -125,27 +131,31 @@ void showSigState(int SIG, bool showMetadata, bool showPayload) {
 	printf("\t.AckMask = 0x%x\n", signal->ackMask);
 	printf("\t.PayloadValid = 0x%x\n", signal->payloadValid);
 
-	if (showMetadata) {
-		// Metadata depends on the signal interrupt itself
-		uint8_t execInt = SIG_GET(signal->interrupts, emSIG_EXEC_IDX);
-		if (execInt) {
-			execprog_md metadata = signal->metadata.execprog;
-			printf("\tEXEC Metadata:\n");
-			printf("\t .Entry = 0x%x\n", metadata.entry);
-		}
+	// Since metadata for a single signal type is unified
+	// Trying to view it from one type when another type will lead to garbage
+	// Most importantly, when trying to view a string from signal heap
+	// Its contents get replaced by the IO metadata
+	// if (showMetadata) {
+	// 	// Metadata depends on the signal interrupt itself
+	// 	uint8_t execInt = SIG_GET(signal->interrupts, emSIG_EXEC_IDX);
+	// 	if (execInt) {
+	// 		execprog_md metadata = signal->metadata.execprog;
+	// 		printf("\tEXEC Metadata:\n");
+	// 		printf("\t .Entry = 0x%x\n", metadata.entry);
+	// 	}
 
-		uint8_t loadInt = SIG_GET(signal->interrupts, emSIG_LOAD_IDX);
-		if (loadInt) {
-			loadprog_md metadata = signal->metadata.loadprog;
-			printf("\tLOAD Metadata:\n");
-			printf("\t .Program = %s\n",  (char*) offsetToPtr(metadata.programOffset));
-			printf("\t .Argc = %d\n", metadata.argc);
-			printf("\t .Argv = {");
-			char** argv = (char**) offsetToPtr(metadata.argvOffset);
-			for (int i = 0; i < metadata.argc-1; i++) printf("%s, ", argv[i]);
-			printf("%s}\n", argv[metadata.argc-1]);
-		}
-	}
+	// 	uint8_t loadInt = SIG_GET(signal->interrupts, emSIG_LOAD_IDX);
+	// 	if (loadInt) {
+	// 		loadprog_md metadata = signal->metadata.loadprog;
+	// 		printf("\tLOAD Metadata:\n");
+	// 		printf("\t .Program = %s\n",  (char*) offsetToPtr(metadata.programOffset));
+	// 		printf("\t .Argc = %d\n", metadata.argc);
+	// 		printf("\t .Argv = {");
+	// 		char** argv = (char**) offsetToPtr(metadata.argvOffset);
+	// 		for (int i = 0; i < metadata.argc-1; i++) printf("%s, ", argv[i]);
+	// 		printf("%s}\n", argv[metadata.argc-1]);
+	// 	}
+	// }
 }
 
 action_t viewState(int argc, char** argv) {
