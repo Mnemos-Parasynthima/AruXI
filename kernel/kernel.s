@@ -129,7 +129,7 @@ _kmalloc:
 	% xr: void*
 
 	ld x10, KERN_HEAPTOP
-	mv xr, x10 % have the previous heaptop be the return
+	mv c1, x10 % have the previous heaptop be the return
 
 	% get the actual address to update it by size
 	ld x10, =KERN_HEAPTOP
@@ -137,6 +137,7 @@ _kmalloc:
 	add x11, x11, a0
 	str x11, [x10]
 
+	mv xr, c1
 	ret
 
 _kfree:
@@ -159,27 +160,27 @@ _kfree:
 	.set STDOUT, 0
 _writeHndlr:
 	% _write(uint32_t count, const char* buffer)
+	% a1: count
+	% a2: buffer
 
 	% get memory for struct
 	% takes up 12 bytes
 
-	sub sp, sp, #8
+	sub sp, sp, #4
 	str lr, [sp]
-	str a0, [sp, #4]
 
 	mv a0, #12
 	call _kmalloc
 	mv x10, xr
 
-	ld a0, [sp, #4]
 	ld lr, [sp]
 	add sp, sp, #4
 
 	% refer to documentation for structure layout
 	mv c0, STDOUT
 	str c0, [x10, #0] % fd
-	str a0, [x10, #4] % count
-	str a1, [x10, #8] % buffer
+	str a1, [x10, #4] % count
+	str a2, [x10, #8] % buffer
 
 	% in order to tell the cpu IO request, use CSTR bit 13
 	% CSTR = CSTR | (1<<13)
@@ -198,7 +199,7 @@ _writeHndlr:
 	% bit 13 should be cleared
 
 	% free memory
-	mv a0, a1
+	mv a0, a2
 	mv a1, #12
 	sub sp, sp, #4
 	str lr, [sp]
