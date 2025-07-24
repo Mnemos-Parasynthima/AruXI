@@ -1,13 +1,13 @@
 CC = gcc
 CFLAGS = -Wall
-INCLUDES = -I../headers/assembler -I../headers
+INCLUDES = -I../headers/assembler-legacy -I../headers
 
 SRCS = assembler.c assemblerError.c DataTable.c encoder.c evaluator.c generator.c InstructionStream.c SectionTable.c SymbolTable.c preprocessor.c lexer-parser.c
-TARGET = ../out/arxsm
+TARGET = ../out/arxsm-legacy
 
 ifeq ($(MAKECMDGOALS),windows)
 SRCS := $(SRCS) getline.c
-TARGET = ../out/arxsm.exe
+TARGET = ../out/arxsm-legacy.exe
 endif
 
 OBJS = $(SRCS:%.c=%.o)
@@ -15,17 +15,17 @@ OBJS = $(SRCS:%.c=%.o)
 %.o: %.c
 	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
-all: arxsm
+all: arxsm-legacy
 
-arxsm: $(OBJS)
+arxsm-legacy: $(OBJS)
 	$(CC) $(CFLAGS) -o $(TARGET) $(OBJS)
 
 windows: CC = zig cc
 windows: CFLAGS += --target=x86_64-windows
-windows: arxsm
+windows: arxsm-legacy
 
 debug: CFLAGS += -g -O0 -DDEBUG
-debug: arxsm
+debug: arxsm-legacy
 
 lib: $(SRCS)
 	$(CC) -fPIC -shared -o ../out/libarxsm.so $(SRCS) $(INCLUDES)
