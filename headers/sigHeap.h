@@ -13,6 +13,8 @@ void* smalloc(sigsize_t size);
 void sfree(void* ptr);
 
 
+
+
 uint32_t ptrToOffset(void* ptr, bool* valid);
 
 void* offsetToPtr(uint32_t offset);

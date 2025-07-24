@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <string.h>
-
+#include <unistd.h>
+#include "diagnostics.h"
 #include "sigHeap.h"
 
 
@@ -22,16 +23,20 @@
  * 		As of now, flags only contain whether the block has been allocated, signified in b0
  * 		1 if allocated, 0 if free
  * For allocated blocks, `CANARY|NEXT` will contain a canary value to test for overwritten
- * For free blocks, it contains a pointer to the next free block
+ * For free blocks, it contains the offset to the next free block
+ * 
+ * Note that offsets are used instead of pointers since the heap is shared
+ * but the pointers vary between processes. Thus by keeping everything relative to the 
+ * beginning (saved per user), data can be transferred and seen across.
  */
 
 typedef struct HeapBlock {
-	void* canary0;
+	uint32_t canary0;
 	sigsize_t size; // Size of the data block, excluding metadata
 	uint32_t flags;
 	union {
-		void* canary1;
-		void* next;
+		uint32_t canary1;
+		uint32_t nextOff;
 	} addr;
 } hblock_t;
 
@@ -42,19 +47,33 @@ typedef struct HeapBlock {
 #define ALIGNMENT 8
 #define ALIGN(x) (((x) + (ALIGNMENT-1)) & ~(ALIGNMENT-1))
 
-#define PTR(x) ((char*)(x))
+#define GET_PTR(off) ((hblock_t*)(signalHeap + off))
+#define GET_OFF(ptr) ((char*)(ptr) - signalHeap)
 
-static void* signalHeap;
-static hblock_t START;
+static char* signalHeap;
+static hblock_t* START; // The very first (unusable) block in the signal heap
 
+
+static void displayFreeList() {
+	dDebug(DB_DETAIL, "START (%p):\nsize: 0x%x\nnext: %p\n", START, START->size, GET_PTR(START->addr.nextOff));
+
+	uint32_t currOff = START->addr.nextOff;
+
+	while (currOff != 0x00000000 && currOff != CANARY) {
+		hblock_t* curr = GET_PTR(currOff);
+		dDebug(DB_DETAIL, "Block %p:\ncanary0: 0x%x\nsize: 0x%x\nflags: 0x%x\nnextOff: 0x%x\n",
+				curr, curr->canary0, curr->size, curr->flags, curr->addr.nextOff);
+		currOff = curr->addr.nextOff;
+	}
+}
 
 static void setupBlock(hblock_t* block, sigsize_t size, bool alloc) {
-	block->canary0 = PTR(CANARY);
+	block->canary0 = CANARY;
 	block->size = size;
 	block->flags = alloc;
 
-	if (alloc) block->addr.canary1 = PTR(CANARY);
-	else block->addr.next = NULL;
+	if (alloc) block->addr.canary1 = CANARY;
+	else block->addr.nextOff = 0x00000000;
 }
 
 /**
@@ -63,12 +82,15 @@ static void setupBlock(hblock_t* block, sigsize_t size, bool alloc) {
  * @return 
  */
 static hblock_t* findBlock(sigsize_t size) {
-	hblock_t* currBlock = (&START)->addr.next;
+	hblock_t* currBlock = NULL;
+	uint32_t currBlockOff = START->addr.nextOff;
 	hblock_t* currBest = NULL;
 
 	sigsize_t currDiff = 0, currMinDiff = UINT32_MAX;
 
-	while (currBlock) {
+	while (currBlockOff != 0x00000000) {
+		currBlock = GET_PTR(currBlockOff);
+
 		// Size difference between the target and actual data size
 		// Need to minimize difference
 		currDiff = currBlock->size - size;
@@ -78,13 +100,13 @@ static hblock_t* findBlock(sigsize_t size) {
 			currBest = currBlock;
 		}
 
-		currBlock = currBest->addr.next;
+		currBlockOff = currBest->addr.nextOff;
 	}
 
 	return currBest;
 }
 
-static hblock_t* truncate(hblock_t* block, sigsize_t size) {
+static hblock_t* splitTruncate(hblock_t* block, sigsize_t size) {
 	hblock_t* temp = block;
 	temp++; // Make temp point to the start of payload data
 
@@ -98,8 +120,8 @@ static hblock_t* truncate(hblock_t* block, sigsize_t size) {
 
 
 	// Get the previous block for linking purposes
-	hblock_t* prev = (&START);
-	while (prev->addr.next != block) prev = prev->addr.next;
+	hblock_t* prev = START;
+	while (GET_PTR(prev->addr.nextOff) != block) prev = GET_PTR(prev->addr.nextOff);
 
 	// If block to allocate takes up everything, cannot split
 	// Else, place a new free block
@@ -110,12 +132,12 @@ static hblock_t* truncate(hblock_t* block, sigsize_t size) {
 
 		setupBlock(temp, newFreeBlockSize-METADATA_SIZE, false);
 
-		prev->addr.next = temp;
-		temp->addr.next = block->addr.next;
+		prev->addr.nextOff = GET_OFF(temp);
+		temp->addr.nextOff = block->addr.nextOff;
 	} else {
  		// else cannot split, just link
 		// Only link previous to next, aka removing from free list
-		prev->addr.next = block->addr.next;
+		prev->addr.nextOff = block->addr.nextOff;
 	}
 
 	setupBlock(block, size, true);
@@ -126,62 +148,78 @@ static hblock_t* truncate(hblock_t* block, sigsize_t size) {
 
 void sinit(void* _sigHeapPtr, bool new) {
 	signalHeap = _sigHeapPtr;
+	START = (hblock_t*) signalHeap;
 
-	// Set up the global starter block
-	// No data in this so size is the metadata size itself
-	setupBlock(&START, METADATA_SIZE, false);
 	if (new) {
-		// Set up the actual heap
-		setupBlock((hblock_t*) signalHeap, _PAGESIZE - METADATA_SIZE, false);
+		// Set up the entry point and actual heap
+		// No data in entry so size is the metadata size itself
+		setupBlock(START, METADATA_SIZE, false);
+		setupBlock(START + 1, _PAGESIZE - (METADATA_SIZE*2), false);
 	}
-	(&START)->addr.next = signalHeap;
+	// START + 1 is just the first actual free block
+	/**
+	 * | SIGNAL HEAP |
+	 * |-------------|
+	 * |    START    |
+	 * |-------------|
+	 * |  FREE BLOCK | (START + 1)
+	 * |- - - - - - -|
+	 * |  FREE SPACE |
+	 * |-------------|
+	 */
+	START->addr.nextOff = GET_OFF(START+1);
 }
 
 void* smalloc(sigsize_t size) {
 	if (size == 0) return NULL;
 
+	// write(STDOUT_FILENO, "smalloc::Will align\n", 20);
 	// All payload data is to be in multiples of 8
 	size = ALIGN(size);
 
 	// Get a block with sufficient size
+	// write(STDOUT_FILENO, "smalloc::Will find block\n", 25);
 	hblock_t* block = findBlock(size);
+	if (!block) return NULL;
 
 	// Have the acquired block be reduced to the necessary limit
 	// And create a new free block
 	// Note that this is important on the first allocation as there is only one block
 	//  and it would not be good to give the user the entire heap :(
-	block = truncate(block, size);
+	// write(STDOUT_FILENO, "smalloc::Will trunctate\n", 24);
+	block = splitTruncate(block, size);
 
 	// Return the start of the actual memory block
 	void* retblock = (void*)(block + 1);
-
+	// write(STDOUT_FILENO, "smalloc::Returning\n", 19);
 	return retblock;
 }
 
 void sfree(void* ptr) {
 	if (!ptr) return;
 
+	// Pointer was given for payload, step back to the actual beginning
 	hblock_t* blockToFree = ((hblock_t*)ptr) - 1;
 
 	// Check double free
 	if (blockToFree->flags == 0b0) return;
 
 	// Check overwritten metadata
-	if (blockToFree->canary0 != PTR(CANARY) && blockToFree->addr.canary1 != PTR(CANARY)) return;
+	if (blockToFree->canary0 != CANARY && blockToFree->addr.canary1 != CANARY) return;
 
 	// TODO: Better error indicating for memory freeing
 
 	// Re-link, aka place it back in free list
-	hblock_t* curr = (&START)->addr.next;
-	hblock_t* temp = NULL;
+	hblock_t* curr = GET_PTR(START->addr.nextOff);
+	uint32_t temp = 0x00000000;
 
 	// Iterate until next block of current is past the block to free
-	while (curr->addr.next && (((hblock_t*)curr->addr.next) < blockToFree)) curr = curr->addr.next;
+	while (curr->addr.nextOff != 0x00000000 && (GET_PTR(curr->addr.nextOff) < blockToFree)) curr = GET_PTR(curr->addr.nextOff);
 
-	temp = curr->addr.next;
+	temp = curr->addr.nextOff;
 
-	curr->addr.next = blockToFree;
-	blockToFree->addr.next = temp;
+	curr->addr.nextOff = GET_OFF(blockToFree);
+	blockToFree->addr.nextOff = temp;
 
 	blockToFree->flags = 0b0;
 
@@ -191,7 +229,7 @@ void sfree(void* ptr) {
 
 uint32_t ptrToOffset(void* ptr, bool* valid) {
 	// Make sure the pointer is within bounds
-	if (ptr <= signalHeap || ptr >= (signalHeap+_PAGESIZE)) *valid = false;
+	if (ptr <= (void*)signalHeap || ptr >= (void*)(signalHeap+_PAGESIZE)) *valid = false;
 
 	// Offset is from the start of the heap to where the pointer is at
 	uint32_t offset = ((char*) ptr) - ((char*) signalHeap);
