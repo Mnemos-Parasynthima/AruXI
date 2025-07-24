@@ -117,16 +117,19 @@ static void handleFaultSignal(signal_t* emuCPUSig) {
 }
 
 static void handleSysSignal(signal_t* emuCPUSig) {
-	io_md* data = (io_md*) (emulatedMemory + emuCPUSig->metadata.syscall.ioReq.kerneldataPtr);
+	uint32_t* data = (uint32_t*)(emulatedMemory + emuCPUSig->metadata.syscall.ioReq.kerneldataPtr);
 	
-	char* buffer = (char*) (emulatedMemory + data->buffer);
+	dDebug(DB_DETAIL, "data struct from em mem: %p (VA 0x%x) = {buffer=0x%x, count=0x%x}", 
+			data, emuCPUSig->metadata.syscall.ioReq.kerneldataPtr, *(data + 2), *(data + 1));
 
-	switch (data->fd)	{
+	char* buffer = (char*) (emulatedMemory + *(data + 2));
+
+	switch (*(data + 0))	{
 		case ARU_STDOUT:
-			ruWrite((const char*) buffer, data->count);
+			ruWrite((const char*) buffer, *(data + 1));
 			break;
 		case ARU_STDIN:
-			ruRead(buffer, data->count);
+			ruRead(buffer, *(data + 1));
 			break;
 		default:
 			break;
@@ -183,6 +186,14 @@ void handleSIGSEGV(int signum) {
 	fflush(stderr);
 	fflush(stdout);
 	flushDebug();
+
+	signalsMemory->metadata.signalType = UNIVERSAL_SIG;
+	signal_t* sig = GET_SIGNAL(signalsMemory->signals, UNIVERSAL_SIG);
+	setFaultSignal(sig);
+
+	kill(signalsMemory->metadata.cpuPID, SIGUSR1);
+	kill(signalsMemory->metadata.shellPID, SIGUSR1);
+
 	exit(-1);
 }
 

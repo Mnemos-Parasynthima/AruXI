@@ -10,6 +10,7 @@
 #define emSIG_READY 0x20000000
 #define emSIG_SYS 0x4000
 #define emSIG_CPU_SAVE 0x1000
+#define emSIG_IO 0x100
 #define emSIG_LOAD 0x80
 #define emSIG_ERROR 0x8
 #define emSIG_EXIT 0x4
@@ -21,6 +22,7 @@
 #define emSIG_READY_IDX 29
 #define emSIG_SYS_IDX 14
 #define emSIG_CPU_SAVE_IDX 12
+#define emSIG_IO_IDX 8
 #define emSIG_LOAD_IDX 7
 #define emSIG_ERROR_IDX 3
 #define emSIG_EXIT_IDX 2
@@ -56,6 +58,11 @@ typedef union SyscallMetadata {
 	struct {
 		uint32_t kerneldataPtr;
 	} ioReq;
+	struct {
+		int stream;
+		uint32_t count;
+		uint32_t bufferOffset;
+	} ioData;
 } syscall_md;
 
 typedef union PayloadMetadata {
@@ -108,6 +115,9 @@ int setCPUSaveSignal(signal_t* signal);
 int ackCPUSaveSignal(signal_t* signal);
 
 // Shell-Emulator signals
+int setIOSignal(signal_t* signal, syscall_md* metadata);
+int ackIOSignal(signal_t* signal);
+
 int setLoadSignal(signal_t* signal, loadprog_md* metadata);
 int ackLoadSignal(signal_t* signal);
 

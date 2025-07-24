@@ -20,6 +20,7 @@
 #include "parser.h"
 #include "environment.h"
 #include "sigHeap.h"
+#include "io.h"
 
 
 const char* PROMPT = "ash> ";
@@ -75,7 +76,7 @@ void handleSIGUSR1(int signum) {
 		uint8_t bit = (ints >> i) & 0b1;
 
 		if (bit == 0b1) {
-			switch (i) 			{
+			switch (i) {
 				case emSIG_FAULT_IDX:
 					flushDebug();
 					munmap(sigMem, SIG_MEM_SIZE);
@@ -83,8 +84,20 @@ void handleSIGUSR1(int signum) {
 					write(STDERR_FILENO, "Detected SIG_FAULT!\n", 20);
 					exit(1);
 					break;
-				// case emSIG_EXIT_IDX:
-				// 	write(STDOUT_FILENO, "Detected SIG_EXIT\n", 19);
+				case emSIG_IO_IDX:
+					switch (sig->metadata.syscall.ioData.stream) {
+						case ARU_STDIN:
+							readConsole();
+							break;
+						case ARU_STDOUT:
+							writeConsole(sig->metadata.syscall.ioData.bufferOffset, sig->metadata.syscall.ioData.count);
+							break;
+						default:
+							break;
+					}
+
+					sig->ackMask = SIG_SET(sig->ackMask, emSIG_IO_IDX);
+					break;
 				default:
 					break;
 			}
@@ -508,7 +521,7 @@ int main(int argc, char const* argv[]) {
 	void* _sigHeap = mmap(NULL, PAGESIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
 	if (_sigHeap == MAP_FAILED) dFatal(D_ERR_MEM, "Could not mmap signal heap!");
 
-	dDebug(DB_DETAIL, "Signal Heap opened at %p", _sigMem);
+	dDebug(DB_DETAIL, "Signal Heap opened at %p", _sigHeap);
 
 	sigMem->metadata.heap[SHELL_HEAP] = _sigHeap;
 

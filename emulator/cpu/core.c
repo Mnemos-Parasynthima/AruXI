@@ -607,7 +607,7 @@ void* runCore(void* _) {
 
 			// In case of an infinite loop or something, limit how much it can cycle for
 			if (runningCycles > 500) core.status = STAT_HLT;
-
+			dDebug(DB_BASIC, "Heap pointer (VA) 0x%x", *((uint32_t*)(emMem + KERN_DATA)));
 			if (core.status == STAT_HLT) {
 				dLog(D_NONE, DSEV_INFO, "Going idle");
 				IDLE = true;
@@ -652,6 +652,11 @@ void* runCore(void* _) {
 				syscall_md metadata = {
 					.ioReq.kerneldataPtr = core.GPR[10]
 				};
+
+				dDebug(DB_BASIC, "Pointer to kernel data structure: 0x%x (%p)", core.GPR[10], emMem + core.GPR[10]);
+				uint32_t* strc = (uint32_t*)(emMem + core.GPR[10]);
+				dDebug(DB_BASIC, "struct->fd (0x%x [%p]): %d; struct->count (0x%x [%p]): %d; sturct->buffer (0x%x [%p]): 0x%x", 
+					(core.GPR[10] + 0), (strc+0), *(strc + 0), (core.GPR[10] + 4), (strc+1), *(strc + 1), (core.GPR[10] + 8), (strc+1), *(strc + 1));
 
 				setSysSignal(sig, &metadata);
 				kill(sigMem->metadata.emulatorPID, SIGUSR1);

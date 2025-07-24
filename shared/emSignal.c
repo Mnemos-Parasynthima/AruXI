@@ -28,7 +28,7 @@ void setupSignals(SigMem* signalMemory) {
 	memset(&universalSignals->metadata, 0x0, sizeof(pd_metadata));
 	
 	emuShellSignals->interrupts = 0x0;
-	emuShellSignals->intEnable = emSIG_LOAD;
+	emuShellSignals->intEnable = emSIG_LOAD | emSIG_IO;
 	emuShellSignals->ackMask = 0x0;
 	emuShellSignals->payloadValid = 0x0;
 	memset(&emuShellSignals->metadata, 0x0, sizeof(pd_metadata));
@@ -124,6 +124,28 @@ int ackSysSignal(signal_t* signal) {
 	return SIG_GET(signal->ackMask, emSIG_SYS_IDX);
 }
 
+int setIOSignal(signal_t* signal, syscall_md* metadata) {
+	uint8_t enable = SIG_GET(signal->intEnable, emSIG_IO_IDX);
+	if (enable != 1) return -1;
+
+	signal->interrupts = SIG_SET(signal->interrupts, emSIG_IO_IDX);
+	signal->payloadValid = SIG_SET(signal->payloadValid, emSIG_IO_IDX);
+
+	if (signal->metadata.syscall.ioData.bufferOffset != 0) {
+		char* buffer = offsetToPtr(signal->metadata.syscall.ioData.bufferOffset);
+		sfree(buffer);
+	}
+
+	signal->metadata.syscall.ioData.bufferOffset = metadata->ioData.bufferOffset;
+	signal->metadata.syscall.ioData.count = metadata->ioData.count;
+	signal->metadata.syscall.ioData.stream = metadata->ioData.stream;
+
+	return SIG_GET(signal->ackMask, emSIG_IO_IDX);
+}
+
+int ackIOSignal(signal_t* signal) {
+	return 0;
+}
 
 int setLoadSignal(signal_t* signal, loadprog_md* metadata) {
 	uint8_t enable = SIG_GET(signal->intEnable, emSIG_LOAD_IDX);
