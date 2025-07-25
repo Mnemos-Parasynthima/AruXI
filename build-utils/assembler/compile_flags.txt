@@ -1,5 +1,5 @@
 -Wall
 -I
-../headers/assembler
+../headers/build-utils/assembler
 -I
 ../headers

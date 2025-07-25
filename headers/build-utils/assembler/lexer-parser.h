@@ -43,13 +43,13 @@ bool isValidRegister(char* reg);
 void handleDirective(SymbolTable* symbTable, SectionTable* sectTable, DataTable* dataTable, char* directive, char* args);
 
 /**
- * 
+ * Handles the label.
  * @param symbTable 
  * @param sectTable 
  * @param tok 
- * @param save 
+ * @param args 
  */
-void handleLabel(SymbolTable* symbTable, SectionTable* sectTable, char** tok, char** save);
+void handleLabel(SymbolTable* symbTable, SectionTable* sectTable, char** tok, char** args);
 
 /**
  * 

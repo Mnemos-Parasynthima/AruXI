@@ -2,15 +2,15 @@
 #include <string.h>
 
 #include "SymbolTable.h"
-#include "assemblerError.h"
+#include "assemblerDiagnostics.h"
 
 
 SymbolTable* initSymbTable() {
 	SymbolTable* symbTable = (SymbolTable*) malloc(sizeof(SymbolTable));
-	if (!symbTable) handleError(ERR_MEM, FATAL, "Could not allocate memory for SymbolTable!\n");
+	if (!symbTable) emitError(ERR_MEM, NULL, "Could not allocate memory for SymbolTable!\n");
 
 	symbTable->entries = (symb_entry_t**) malloc(sizeof(symb_entry_t*) * 10);
-	if (!symbTable->entries) handleError(ERR_MEM, FATAL, "Could not allocate memory for symbol entries!\n");
+	if (!symbTable->entries) emitError(ERR_MEM, NULL, "Could not allocate memory for symbol entries!\n");
 	symbTable->capacity = 10;
 	symbTable->size = 0;
 
@@ -19,22 +19,19 @@ SymbolTable* initSymbTable() {
 
 symb_entry_t* initSymbEntry(char* name, char* expr, int32_t value, uint32_t flags, char* source) {
 	symb_entry_t* symbEntry = (symb_entry_t*) malloc(sizeof(symb_entry_t));
-	if (!symbEntry) handleError(ERR_MEM, FATAL, "Could not allocate memory for symbol entry!\n");
+	if (!symbEntry) emitError(ERR_MEM, NULL, "Could not allocate memory for symbol entry!\n");
 
 	size_t nameLen = strlen(name);
 	symbEntry->name = (char*) malloc(sizeof(char) * nameLen + 1);
-	if (!symbEntry->name) handleError(ERR_MEM, FATAL, "Could not allocate memory for symbol name!\n");
+	if (!symbEntry->name) emitError(ERR_MEM, NULL, "Could not allocate memory for symbol name!\n");
 	strcpy(symbEntry->name, name);
-
-	size_t sourceLen = strlen(source);
-	symbEntry->source = (char*) malloc(sizeof(char) * sourceLen + 1);
-	if (!symbEntry->source) handleError(ERR_MEM, FATAL, "Could not allocate memory for symbol source!\n");
-	strcpy(symbEntry->source, source);
 
 	if (expr && GET_EXPRESSION(flags) == 1) symbEntry->expr = expr;
 	else symbEntry->value = value;
-
+	
 	symbEntry->flags = flags;
+	symbEntry->source = source; // Assuming it has been malloc'd
+	symbEntry->linenum = 0;
 
 	return symbEntry;
 }
@@ -44,7 +41,7 @@ void addSymbEntry(SymbolTable* symbTable, symb_entry_t* symbEntry) {
 		symbTable->capacity *= 2;
 
 		symb_entry_t** temp = (symb_entry_t**) realloc(symbTable->entries, symbTable->capacity * sizeof(symb_entry_t*));
-		if (!temp) handleError(ERR_MEM, FATAL, "Could not reallocate memory for new entries!\n");
+		if (!temp) emitError(ERR_MEM, NULL, "Could not reallocate memory for new entries!\n");
 
 		symbTable->entries = temp;
 	}
@@ -71,7 +68,7 @@ symb_entry_t* getSymbEntry(SymbolTable* symbTable, char* name) {
 }
 
 void displaySymbTable(SymbolTable* symbTable) {
-	debug("Symbol Table with %d entries:\n", symbTable->size);
+	debug(DEBUG_TRACE, "Symbol Table with %d entries:\n", symbTable->size);
 	for (int i = 0; i < symbTable->size; i++) {
 		symb_entry_t* entry = symbTable->entries[i];
 		uint32_t flags = entry->flags;
@@ -82,9 +79,10 @@ void displaySymbTable(SymbolTable* symbTable) {
 		uint8_t REFERENCE = GET_REFERENCE(flags);
 		uint8_t DEFINED = GET_DEFINED(flags);
 		
-		debug("%s: ", entry->name);
-		if (EXPR == 0b1) debug("(%s)\t", entry->expr);
-		else debug("(0x%x)\t", entry->value);
+		debug(DEBUG_TRACE, "%s: ", entry->name);
+
+		if (EXPR == 0b1) debug(DEBUG_TRACE, "(%s)\t", entry->expr);
+		else debug(DEBUG_TRACE, "(0x%x)\t", entry->value);
 
 		char* sectStr;
 		if (SECT == 0b00) sectStr = "DATA";
@@ -103,7 +101,7 @@ void displaySymbTable(SymbolTable* symbTable) {
 		else typeStr = "UNDEF";
 
 		// EXPR: (0|1); SECT: (DATA|CONST|BSS|TEXT|EVT|IVT); TYPE: (NONE|ABS|FUNC|OBJ; LOCALITY: (LOC|GLOB); REFERENCE: (0|1); DEFINED: (0|1)
-		debug("EXPR: %d; SECT: %s; TYPE: %s; LOCALITY: %s; REFERENCE: %d; DEFINED: %d\n", 
+		debug(DEBUG_TRACE, "EXPR: %d; SECT: %s; TYPE: %s; LOCALITY: %s; REFERENCE: %d; DEFINED: %d\n", 
 			EXPR, sectStr, typeStr, ((LOCALITY == 0b0) ? "LOC" : "GLOB"), REFERENCE, DEFINED);
 	}
 }
@@ -112,6 +110,7 @@ void deleteSymbTable(SymbolTable* symbTable) {
 	for (int i = 0; i < symbTable->size; i++) {
 		symb_entry_t* entry = symbTable->entries[i];
 		free(entry->name);
+		if (entry->source) free(entry->source);
 		free(entry);
 		// Assuming expr has been freed before
 		// Should be guaranteed by updateSymbEntry()

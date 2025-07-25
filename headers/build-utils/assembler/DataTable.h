@@ -8,7 +8,8 @@ typedef struct DataEntry {
 	uint8_t type; // 0:string, 1:bytes, 2:halfwords, 3:words, 4:floats
 	uint32_t addr; // Address in respect to its section
 	uint32_t size; // Total size that it occupies
-	char* source; // The original string
+	char* source; // The original string that has been malloc'd
+	int linenum; // Line number that the data is found in
 	union {
 		char* str;
 		uint8_t* bytes;
@@ -67,7 +68,7 @@ DataTable* initDataTable();
  * @param type The type of data: 0 for str, 1 for bytes, 2 for halfwords, 3 for words, 4 for floats
  * @param addr The address in which the data is located at relative to its section, aka the LP
  * @param size The total size that the data occupies in bytes
- * @param source The original source string, used for debugging, will be malloc'd
+ * @param source The original source string that must be malloc'd
  * @param data The actual data itself that must be malloc'd
  * @return The new data entry
  */

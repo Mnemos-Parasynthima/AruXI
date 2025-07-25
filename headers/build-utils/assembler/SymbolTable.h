@@ -5,13 +5,14 @@
 
 
 typedef struct SymbolEntry {
-	char* name;
+	char* name; // Name of the symbol
 	union {
-		char* expr;
-		int32_t value;
+		char* expr; // The expression as a string
+		int32_t value; // The evaluated number
 	};
-	uint16_t flags;
-	char* source;
+	uint16_t flags; // Flags
+	char* source; // The original string that has been malloc'd
+	int linenum; // The line number that the symbol is found at
 } symb_entry_t;
 
 typedef struct SymbolTable {
@@ -61,7 +62,7 @@ SymbolTable* initSymbTable();
  * @param expr The expression string
  * @param value The symbol value
  * @param flags The symbol entry flags to set
- * @param source The source line
+ * @param source The original source string that must be malloc'd
  * @return A symbol entry
  */
 symb_entry_t* initSymbEntry(char* name, char* expr, int32_t value, uint32_t flags, char* source);

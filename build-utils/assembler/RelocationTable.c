@@ -2,15 +2,15 @@
 #include <string.h>
 
 #include "RelocationTable.h"
-#include "assemblerError.h"
+#include "assemblerDiagnostics.h"
 
 
 RelocationTable* initRelocTable() {
 	RelocationTable* relocTable = (RelocationTable*) malloc(sizeof(RelocationTable));
-	if (!relocTable) handleError(ERR_MEM, FATAL, "Could not allocate memory for relocation table!\n");
+	if (!relocTable) emitError(ERR_MEM, NULL, "Could not allocate memory for relocation table!\n");
 
 	relocTable->entries = (reloc_entry_t**) malloc(sizeof(reloc_entry_t*) * 10);
-	if (!relocTable->entries) handleError(ERR_MEM, FATAL, "Could not allocate memory for relocation entries!\n");
+	if (!relocTable->entries) emitError(ERR_MEM, NULL, "Could not allocate memory for relocation entries!\n");
 	relocTable->capacity = 10;
 	relocTable->size = 0;
 
@@ -19,11 +19,11 @@ RelocationTable* initRelocTable() {
 
 reloc_entry_t* initRelocEntry(uint8_t section, uint32_t offset, char* symbol, uint8_t type) {
 	reloc_entry_t* relocEntry = (reloc_entry_t*) malloc(sizeof(reloc_entry_t));
-	if (!relocEntry) handleError(ERR_MEM, FATAL, "Could not allocate memory for relocation entry!\n");
+	if (!relocEntry) emitError(ERR_MEM, NULL, "Could not allocate memory for relocation entry!\n");
 
 	size_t symbolLen = strlen(symbol);
 	relocEntry->symbol = (char*) malloc(sizeof(char) * symbolLen + 1);
-	if (!relocEntry->symbol) handleError(ERR_MEM, FATAL, "Could not allocate memory for relocation symbol!\n");
+	if (!relocEntry->symbol) emitError(ERR_MEM, NULL, "Could not allocate memory for relocation symbol!\n");
 	strcpy(relocEntry->symbol, symbol);
 
 	relocEntry->section = section;
@@ -38,7 +38,7 @@ void addRelocEntry(RelocationTable* relocTable, reloc_entry_t* relocEntry) {
 		relocTable->capacity *= 2;
 
 		reloc_entry_t** temp = (reloc_entry_t**) realloc(relocTable->entries, relocTable->capacity * sizeof(reloc_entry_t*));
-		if (!temp) handleError(ERR_MEM, FATAL, "Could not reallocate memory for new relocation entries!\n");
+		if (!temp) emitError(ERR_MEM, NULL, "Could not reallocate memory for new relocation entries!\n");
 
 		relocTable->entries = temp;
 	}

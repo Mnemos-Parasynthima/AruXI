@@ -10,7 +10,8 @@ typedef struct InstructionObject {
 	uint32_t encoding; // Instrucion type (pass 1) and encoding (pass 2)
 	char* instr; // Instruction string
 	char** operands; // Null-terminated array of operand strings
-	char* source; // The original string
+	char* source; // The original string that has been malloc'd
+	int linenum; // Line numer that the instruction is found in
 } instr_obj_t;
 
 typedef struct InstructionStream {

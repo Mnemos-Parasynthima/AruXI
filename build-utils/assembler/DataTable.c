@@ -3,12 +3,12 @@
 #include <string.h>
 
 #include "DataTable.h"
-#include "assemblerError.h"
+#include "assemblerDiagnostics.h"
 
 
 DataTable* initDataTable() {
 	DataTable* dataTable = (DataTable*) malloc(sizeof(DataTable));
-	if (!dataTable) handleError(ERR_MEM, FATAL, "Could not allocate memory for data table!\n");
+	if (!dataTable) emitError(ERR_MEM, NULL, "Could not allocate memory for data table!\n");
 
 	dataTable->dataEntries = (data_entry_t**) malloc(sizeof(data_entry_t*) * 5);
 	dataTable->dSize = 0;
@@ -31,14 +31,14 @@ DataTable* initDataTable() {
 
 data_entry_t* initDataEntry(data_t type, uint32_t addr, uint32_t size, char* source, void* data) {
 	data_entry_t* dataEntry = (data_entry_t*) malloc(sizeof(data_entry_t));
-	if (!dataEntry) handleError(ERR_MEM, FATAL, "Could not allocate space for data entry!\n");
+	if (!dataEntry) emitError(ERR_MEM, NULL, "Could not allocate space for data entry!\n");
 
 	dataEntry->type = type;
 	dataEntry->addr = addr;
 	dataEntry->size = size;
-	dataEntry->source = (char*) malloc(sizeof(char) * strlen(source) + 1);
-	if (dataEntry->source) strcpy(dataEntry->source, source); // source is optional, no fret if no space
+	dataEntry->source = source; // Assuming it has been allocated
 	dataEntry->data._data = data;	// Assuming it has been allocated
+	dataEntry->linenum = 0;
 
 	return dataEntry;
 }
@@ -71,7 +71,7 @@ void addDataEntry(DataTable* dataTable, data_entry_t* dataEntry, data_sect_t sec
 		*capacity *= 2;
 
 		data_entry_t** temp = (data_entry_t**) realloc(*entries, sizeof(data_entry_t*) * (*capacity));
-		if (!temp) handleError(ERR_MEM, FATAL, "Could not reallocate memory for data entries!\n");
+		if (!temp) emitError(ERR_MEM, NULL, "Could not reallocate memory for data entries!\n");
 
 		*entries = temp;
 	}
@@ -128,46 +128,48 @@ static void displayDataEntry(data_entry_t* dataEntry) {
 			break;
 	}
 
-	debug("\t\tType: %s\n", typeStr);
-	debug("\t\tAddress: 0x%x\n", dataEntry->addr);
-	debug("\t\tSize: 0x%x\n", dataEntry->size);
-	debug("\t\tSource: %s\n\n", dataEntry->source);
+	debug(DEBUG_TRACE, "\t\tType: %s\n", typeStr);
+	debug(DEBUG_TRACE, "\t\tAddress: 0x%x\n", dataEntry->addr);
+	debug(DEBUG_TRACE, "\t\tSize: 0x%x\n", dataEntry->size);
+	debug(DEBUG_TRACE, "\t\tSource: %s\n\n", dataEntry->source);
 	// debug("\t\tData: %s\n", dataEntry->data);
 }
 
 void displayDataTable(DataTable* dataTable) {
-	debug("Data Table:\n");
+	debug(DEBUG_TRACE, "Data Table:\n");
 
-	debug("\tData (%d entries)\n", dataTable->dSize);
+	debug(DEBUG_TRACE, "\tData (%d entries)\n", dataTable->dSize);
 	for (int i = 0; i < dataTable->dSize; i++) {
 		displayDataEntry(dataTable->dataEntries[i]);
 	}
-	debug("\n");
+	debug(DEBUG_TRACE, "\n");
 	
-	debug("\tConst (%d entries)\n", dataTable->cSize);
+	debug(DEBUG_TRACE, "\tConst (%d entries)\n", dataTable->cSize);
 	for (int i = 0; i < dataTable->cSize; i++) {
 		displayDataEntry(dataTable->constEntries[i]);
 	}
-	debug("\n");
+	debug(DEBUG_TRACE, "\n");
 
-	debug("\tBss (%d entries)\n", dataTable->bSize);
+	debug(DEBUG_TRACE, "\tBss (%d entries)\n", dataTable->bSize);
 	for (int i = 0; i < dataTable->bSize; i++) {
 		displayDataEntry(dataTable->bssEntries[i]);
 	}
-	debug("\n");
+	debug(DEBUG_TRACE, "\n");
 
-	debug("\tEVT (%d entires)\n", dataTable->eSize);
+	debug(DEBUG_TRACE, "\tEVT (%d entires)\n", dataTable->eSize);
 	for (int i = 0; i < dataTable->eSize; i++) {
 		displayDataEntry(dataTable->evtEntries[i]);
 	}
-	debug("\n");
+	debug(DEBUG_TRACE, "\n");
 }
 
 void deleteDataTable(DataTable* dataTable) {
+	// Even though a data entry gets the allocated source and data, it takes ownership
+
 	for (int i = 0; i < dataTable->dSize; i++) {
 		data_entry_t* entry = dataTable->dataEntries[i];
 
-		free(entry->source);
+		if (entry->source) free(entry->source);
 		free(entry->data.bytes);
 		free(entry);
 	}
@@ -176,7 +178,7 @@ void deleteDataTable(DataTable* dataTable) {
 	for (int i = 0; i < dataTable->cSize; i++) {
 		data_entry_t* entry = dataTable->constEntries[i];
 
-		free(entry->source);
+		if (entry->source) free(entry->source);
 		free(entry->data.bytes);
 		free(entry);
 	}
@@ -185,7 +187,7 @@ void deleteDataTable(DataTable* dataTable) {
 	for (int i = 0; i < dataTable->bSize; i++) {
 		data_entry_t* entry = dataTable->bssEntries[i];
 
-		free(entry->source);
+		if (entry->source) free(entry->source);
 		// entry->data.* is not freed since bss cannot allow for actual data
 		// it only needs the size needed
 		free(entry);
@@ -195,7 +197,7 @@ void deleteDataTable(DataTable* dataTable) {
 	for (int i = 0; i < dataTable->eSize; i++) {
 		data_entry_t* entry = dataTable->evtEntries[i];
 
-		free(entry->source);
+		if (entry->source) free(entry->source);
 		free(entry->data.bytes);
 		free(entry);
 	}
