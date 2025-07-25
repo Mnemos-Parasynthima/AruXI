@@ -1,5 +1,5 @@
 -Wall
 -I
-../headers/assembler
+../headers/assembler-legacy
 -I
 ../headers

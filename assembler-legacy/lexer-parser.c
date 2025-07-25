@@ -6,10 +6,10 @@
 #include <ctype.h>
 #include <strings.h>
 
-#include "lexer-parser.h"
-#include "constants.h"
-#include "assemblerError.h"
-#include "evaluator.h"
+#include "lexer-parser-legacy.h"
+#include "constants-legacy.h"
+#include "assemblerError-legacy.h"
+#include "evaluator-legacy.h"
 
 
 extern bool halt;

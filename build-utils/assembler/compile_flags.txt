@@ -1,0 +1,5 @@
+-Wall
+-I
+../headers/assembler
+-I
+../headers

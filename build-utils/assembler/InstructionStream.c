@@ -2,8 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "InstructionStream-legacy.h"
-#include "assemblerError-legacy.h"
+#include "InstructionStream.h"
+#include "assemblerError.h"
 
 
 InstructionStream* initInstrStream() {
@@ -28,9 +28,10 @@ instr_obj_t* initInstrObj(uint32_t addr, char* source, char* instr, char** opera
 
 	instrObj->addr = addr;
 
-	// size_t sourceLen = strlen(source);
-	// instrObj->source = (char*) malloc(sizeof(char) * sourceLen + 1);
-	// strcpy(instrObj->source, source);
+	size_t sourceLen = strlen(source);
+	instrObj->source = (char*) malloc(sizeof(char) * sourceLen + 1);
+	if (!instrObj->source) handleError(ERR_MEM, FATAL, "Could not allocate memory for instruction source string!\n");
+	strcpy(instrObj->source, source);
 
 	size_t instrLen = strlen(instr);
 	instrObj->instr = (char*) malloc(sizeof(char) * instrLen + 1);
@@ -52,12 +53,12 @@ instr_obj_t* initInstrObj(uint32_t addr, char* source, char* instr, char** opera
 		}
 
 		size_t operandLen = strlen(operand);
-		char* noperand = (char*) malloc(sizeof(char) * operandLen + 1);
-		if (!noperand) handleError(ERR_MEM, FATAL, "Could not allocate memory for instruction operand!\n");
+		char* _operand = (char*) malloc(sizeof(char) * operandLen + 1);
+		if (!_operand) handleError(ERR_MEM, FATAL, "Could not allocate memory for instruction operand!\n");
 
-		strcpy(noperand, operand);
+		strcpy(_operand, operand);
 
-		instrObj->operands[i] = noperand;
+		instrObj->operands[i] = _operand;
 	}
 	instrObj->operands[operandsLen] = NULL;
 

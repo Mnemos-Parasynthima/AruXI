@@ -3,7 +3,7 @@
 #include <ctype.h>
 #include <string.h>
 
-#include "evaluator.h"
+#include "evaluator-legacy.h"
 
 
 typedef enum TokenType {

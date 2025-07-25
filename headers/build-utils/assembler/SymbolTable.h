@@ -10,7 +10,8 @@ typedef struct SymbolEntry {
 		char* expr;
 		int32_t value;
 	};
-	uint32_t flags;
+	uint16_t flags;
+	char* source;
 } symb_entry_t;
 
 typedef struct SymbolTable {
@@ -20,29 +21,30 @@ typedef struct SymbolTable {
 } SymbolTable;
 
 /**
-	| 31-8 | 7   | 6   | 5   | 4   | 3   | 2   | 1   | 0   |
-	| x    | E   | S   | S   | S   | T   | L   | R   | D   |
+	| 15-9 | 8 | 7 | 6 | 5 | 4 | 3 | 2 | 1 | 0 |
+	| x    | E | S | S | S | T | T | L | R | D |
 	E: Whether the symbol hold an expression string or a value. `0` for value, `1` for expression
-	S: The section the symbol is defined in. `00` for data, `01` for const, `10` for  bss, `11` for text, `100` for evt, `101` for ivt.
-	T: The type of symbol. `0` for address, and `1` for `.set`.
+	S: The section the symbol is defined in. `00` for data, `01` for const, `10` for  bss, `11` for text, `100` for evt, `101` for ivt, `111` for undefined.
+	T: The type of symbol. `00` for none (extern or unknown), `01` for absolute (set), `10` for function, `11` for object
 	L: The locality of the symbol. `0` for local, and `1` for global.
 	R: The reference state of the symbol. `0` if not referenced, and `1` if referenced.
 	D: The defined state of the symbol. `0` for undefined, and `1` for defined.
 */
 
-#define CREATE_FLAGS(E,S,T,L,R,D) ((E<<7)|(S<<4)|(T<<3)|(L<<2)|(R<<1)|(D<<0))
+#define CREATE_FLAGS(E,S,T,L,R,D) ((E<<8)|(S<<5)|(T<<3)|(L<<2)|(R<<1)|(D<<0))
 
-#define GET_EXPRESSION(flags) ((flags>>7) & 0b1)
-#define GET_SECTION(flags) ((flags>>4) & 0b111)
-#define GET_TYPE(flags) ((flags>>3) & 0b1)
+#define GET_EXPRESSION(flags) ((flags>>8) & 0b1)
+#define GET_SECTION(flags) ((flags>>5) & 0b111)
+#define GET_TYPE(flags) ((flags>>3) & 0b11)
 #define GET_LOCALITY(flags) ((flags>>2) & 0b1)
 #define GET_REFERENCE(flags) ((flags>>1) & 0b1)
 #define GET_DEFINED(flags) ((flags>>0) & 0b1)
 
-#define SET_EXPRESSION(flags) (flags &= ~(1 << 7)) // Sets the expression flag to 0
+#define SET_EXPRESSION(flags) (flags &= ~(1 << 8)) // Sets the expression flag to 0
+#define SET_TYPE(flags, type) ((flags & ~0b11000) | ((type & 0b11000) << 3)) // Sets the type to the given type
 #define SET_LOCALITY(flags) (flags |= (1 << 2)) // Sets the locality flag to 1 for global
 #define SET_REFERENCE(flags) (flags |= (1 << 1)) // Sets referenced
-#define SET_DEFINED(flags) (flags |= (1 << 0))
+#define SET_DEFINED(flags) (flags |= (1 << 0)) // Sets defined
 
 
 /**
@@ -59,11 +61,10 @@ SymbolTable* initSymbTable();
  * @param expr The expression string
  * @param value The symbol value
  * @param flags The symbol entry flags to set
+ * @param source The source line
  * @return A symbol entry
  */
-symb_entry_t* initSymbEntry(char* name, char* expr, int32_t value, uint32_t flags);
-
-// void updateSymbEntry(symb_entry_t* symbEntry, int32_t value, uint8_t activeSection, )
+symb_entry_t* initSymbEntry(char* name, char* expr, int32_t value, uint32_t flags, char* source);
 
 /**
  * Adds a symbol entry to the symbol table. This creates a new entry to the table, that is 
@@ -74,17 +75,32 @@ symb_entry_t* initSymbEntry(char* name, char* expr, int32_t value, uint32_t flag
 void addSymbEntry(SymbolTable* symbTable, symb_entry_t* symbEntry);
 
 /**
- * @brief 
- * @param symbEntry 
- * @param value 
- * @param flags 
+ * Updates an existing entry with the value and flags. This is most common when either the expression has been evaluated
+ * or the state has been updates (from local to global or unreferenced to referenced).
+ * @param symbEntry The symbol entry
+ * @param value The new (or current value)
+ * @param flags The updated (or same) flags
  */
 void updateSymbEntry(symb_entry_t* symbEntry, uint32_t value, uint32_t flags);
 
+/**
+ * Retrieves the symbol with the given name.
+ * @param symbTable The symbol table
+ * @param name The name of the symbol
+ * @return The symbol entry
+ */
 symb_entry_t* getSymbEntry(SymbolTable* symbTable, char* name);
 
+/**
+ * Displays the entire symbol table.
+ * @param symbTable The symbol table
+ */
 void displaySymbTable(SymbolTable* symbTable);
 
+/**
+ * Frees all contents of the symbol table.
+ * @param symbTable The symbol table
+ */
 void deleteSymbTable(SymbolTable* symbTable);
 
 #endif

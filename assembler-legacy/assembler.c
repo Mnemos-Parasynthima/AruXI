@@ -3,22 +3,22 @@
 #ifndef _WIN64
 #include <unistd.h>
 #else
-#include "unistd.h"
+#include "unistd-legacy.h"
 #endif
 #include <ctype.h>
 #include <getopt.h>
 #include <string.h>
 
-#include "SectionTable.h"
-#include "InstructionStream.h"
-#include "DataTable.h"
-#include "SymbolTable.h"
-#include "assemblerError.h"
-#include "preprocessor.h"
-#include "lexer-parser.h"
-#include "evaluator.h"
-#include "encoder.h"
-#include "generator.h"
+#include "SectionTable-legacy.h"
+#include "InstructionStream-legacy.h"
+#include "DataTable-legacy.h"
+#include "SymbolTable-legacy.h"
+#include "assemblerError-legacy.h"
+#include "preprocessor-legacy.h"
+#include "lexer-parser-legacy.h"
+#include "evaluator-legacy.h"
+#include "encoder-legacy.h"
+#include "generator-legacy.h"
 
 
 bool halt; // To stop assembling in case of `.end`

@@ -1,29 +1,35 @@
 #include <stdlib.h>
-#include <stdio.h>
 #include <string.h>
 
-#include "SymbolTable-legacy.h"
-#include "assemblerError-legacy.h"
+#include "SymbolTable.h"
+#include "assemblerError.h"
 
 
 SymbolTable* initSymbTable() {
-	SymbolTable* symbtable = (SymbolTable*) malloc(sizeof(SymbolTable));
-	if (!symbtable) handleError(ERR_MEM, FATAL, "Could not allocate memory for SymbolTable!\n");
+	SymbolTable* symbTable = (SymbolTable*) malloc(sizeof(SymbolTable));
+	if (!symbTable) handleError(ERR_MEM, FATAL, "Could not allocate memory for SymbolTable!\n");
 
-	symbtable->entries = (symb_entry_t**) malloc(sizeof(symb_entry_t*) * 10);
-	symbtable->capacity = 10;
-	symbtable->size = 0;
+	symbTable->entries = (symb_entry_t**) malloc(sizeof(symb_entry_t*) * 10);
+	if (!symbTable->entries) handleError(ERR_MEM, FATAL, "Could not allocate memory for symbol entries!\n");
+	symbTable->capacity = 10;
+	symbTable->size = 0;
 
-	return symbtable;
+	return symbTable;
 }
 
-symb_entry_t* initSymbEntry(char* name, char* expr, int32_t value, uint32_t flags) {
+symb_entry_t* initSymbEntry(char* name, char* expr, int32_t value, uint32_t flags, char* source) {
 	symb_entry_t* symbEntry = (symb_entry_t*) malloc(sizeof(symb_entry_t));
-	if (!symbEntry) handleError(ERR_MEM, FATAL, "Could not allocate memory for Symbol Entry!\n");
+	if (!symbEntry) handleError(ERR_MEM, FATAL, "Could not allocate memory for symbol entry!\n");
 
 	size_t nameLen = strlen(name);
 	symbEntry->name = (char*) malloc(sizeof(char) * nameLen + 1);
+	if (!symbEntry->name) handleError(ERR_MEM, FATAL, "Could not allocate memory for symbol name!\n");
 	strcpy(symbEntry->name, name);
+
+	size_t sourceLen = strlen(source);
+	symbEntry->source = (char*) malloc(sizeof(char) * sourceLen + 1);
+	if (!symbEntry->source) handleError(ERR_MEM, FATAL, "Could not allocate memory for symbol source!\n");
+	strcpy(symbEntry->source, source);
 
 	if (expr && GET_EXPRESSION(flags) == 1) symbEntry->expr = expr;
 	else symbEntry->value = value;
@@ -51,8 +57,7 @@ void addSymbEntry(SymbolTable* symbTable, symb_entry_t* symbEntry) {
 void updateSymbEntry(symb_entry_t* symbEntry, uint32_t value, uint32_t flags) {
 	free(symbEntry->expr);
 	symbEntry->value = value;
-	// symbEntry->flags &= ~(1 << 7); // setting 0 to E flag
-	symbEntry->flags = flags;
+	symbEntry->flags = flags; // assuming `flags` has been updated
 }
 
 symb_entry_t* getSymbEntry(SymbolTable* symbTable, char* name) {
@@ -81,15 +86,25 @@ void displaySymbTable(SymbolTable* symbTable) {
 		if (EXPR == 0b1) debug("(%s)\t", entry->expr);
 		else debug("(0x%x)\t", entry->value);
 
-		char sectStr[6];
-		if (SECT == 0b00) sprintf(sectStr, "DATA");
-		else if (SECT == 0b01) sprintf(sectStr, "CONST");
-		else if (SECT == 0b10) sprintf(sectStr, "BSS");
-		else sprintf(sectStr, "TEXT");
+		char* sectStr;
+		if (SECT == 0b00) sectStr = "DATA";
+		else if (SECT == 0b01) sectStr = "CONST";
+		else if (SECT == 0b10) sectStr = "BSS";
+		else if (SECT == 0b11) sectStr = "TEXT";
+		else if (SECT == 0b100) sectStr = "EVT";
+		else if (SECT == 0b101) sectStr = "IVT";
+		else sectStr = "UNDEF";
 
-		// EXPR: (0|1); SECT: (DATA|CONST|BSS|TEXT); TYPE: (ADDR|SET); LOCALITY: (LOC|GLOB); REFERENCE: (0|1); DEFINED: (0|1)
+		char* typeStr;
+		if (TYPE == 0b00) typeStr = "NONE";
+		else if (TYPE == 0b01) typeStr = "ABS";
+		else if (TYPE == 0b10) typeStr = "FUNC";
+		else if (TYPE == 0b11) typeStr = "OBJ";
+		else typeStr = "UNDEF";
+
+		// EXPR: (0|1); SECT: (DATA|CONST|BSS|TEXT|EVT|IVT); TYPE: (NONE|ABS|FUNC|OBJ; LOCALITY: (LOC|GLOB); REFERENCE: (0|1); DEFINED: (0|1)
 		debug("EXPR: %d; SECT: %s; TYPE: %s; LOCALITY: %s; REFERENCE: %d; DEFINED: %d\n", 
-			EXPR, sectStr, ((TYPE == 0b0) ? "ADDR" : "SET"), ((LOCALITY == 0b0) ? "LOC" : "GLOB"), REFERENCE, DEFINED);
+			EXPR, sectStr, typeStr, ((LOCALITY == 0b0) ? "LOC" : "GLOB"), REFERENCE, DEFINED);
 	}
 }
 

@@ -1,8 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "SectionTable.h"
-#include "assemblerError.h"
+#include "SectionTable-legacy.h"
+#include "assemblerError-legacy.h"
 
 
 SectionTable* initSectionTable() {

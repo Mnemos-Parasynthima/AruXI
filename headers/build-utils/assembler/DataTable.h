@@ -44,7 +44,16 @@ typedef enum {
 	NONE_SECT,
 	EVT_SECT,
 	IVT_SECT
-} data_sect_type_t;
+} data_sect_t;
+
+typedef enum {
+	STRING_TYPE,
+	BYTES_TYPE,
+	HWORDS_TYPE,
+	WORDS_TYPE,
+	FLOATS_TYPE,
+	NONE_TYPE,
+} data_t;
 
 
 /**
@@ -58,11 +67,11 @@ DataTable* initDataTable();
  * @param type The type of data: 0 for str, 1 for bytes, 2 for halfwords, 3 for words, 4 for floats
  * @param addr The address in which the data is located at relative to its section, aka the LP
  * @param size The total size that the data occupies in bytes
- * @param source The original source string, used for debugging
- * @param data The actual data itself that must be malloced
- * @return A data entry
+ * @param source The original source string, used for debugging, will be malloc'd
+ * @param data The actual data itself that must be malloc'd
+ * @return The new data entry
  */
-data_entry_t* initDataEntry(uint8_t type, uint32_t addr, uint32_t size, char* source, void* data);
+data_entry_t* initDataEntry(data_t type, uint32_t addr, uint32_t size, char* source, void* data);
 
 /**
  * 
@@ -70,7 +79,7 @@ data_entry_t* initDataEntry(uint8_t type, uint32_t addr, uint32_t size, char* so
  * @param dataEntry 
  * @param sectType 
  */
-void addDataEntry(DataTable* dataTable, data_entry_t* dataEntry, data_sect_type_t sectType);
+void addDataEntry(DataTable* dataTable, data_entry_t* dataEntry, data_sect_t sectType);
 
 /**
  * Gets the data entry from a given section based on the address.
@@ -79,7 +88,7 @@ void addDataEntry(DataTable* dataTable, data_entry_t* dataEntry, data_sect_type_
  * @param addr The address of the data
  * @return The data entry
  */
-data_entry_t* getDataEntry(DataTable* dataTable, data_sect_type_t sectType, uint32_t addr);
+data_entry_t* getDataEntry(DataTable* dataTable, data_sect_t sectType, uint32_t addr);
 
 void displayDataTable(DataTable* dataTable);
 

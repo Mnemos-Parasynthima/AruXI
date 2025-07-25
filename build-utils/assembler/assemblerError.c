@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <stdarg.h>
 
-#include "assemblerError-legacy.h"
+#include "assemblerError.h"
 
 static char buffer[150];
 

@@ -3,10 +3,10 @@
 #include <string.h>
 #include <strings.h>
 
-#include "encoder.h"
-#include "constants.h"
-#include "assemblerError.h"
-#include "evaluator.h"
+#include "encoder-legacy.h"
+#include "constants-legacy.h"
+#include "assemblerError-legacy.h"
+#include "evaluator-legacy.h"
 
 
 enum ImmediateSize {

@@ -3,8 +3,8 @@
 #include <ctype.h>
 #include <string.h>
 
-#include "preprocessor.h"
-#include "assemblerError.h"
+#include "preprocessor-legacy.h"
+#include "assemblerError-legacy.h"
 
 #define COMMENT '%'
 

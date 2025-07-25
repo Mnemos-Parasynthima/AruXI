@@ -1,5 +1,5 @@
-#ifndef _INSTRUCTION_STREAM_H_
-#define _INSTRUCTION_STREAM_H_
+#ifndef _INSTRUCTION_STREAM_LEGACY_H_
+#define _INSTRUCTION_STREAM_LEGACY_H_
 
 #include <stdint.h>
 #include <stdbool.h>

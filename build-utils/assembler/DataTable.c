@@ -2,8 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "DataTable-legacy.h"
-#include "assemblerError-legacy.h"
+#include "DataTable.h"
+#include "assemblerError.h"
 
 
 DataTable* initDataTable() {
@@ -29,7 +29,7 @@ DataTable* initDataTable() {
 	return dataTable;
 }
 
-data_entry_t* initDataEntry(uint8_t type, uint32_t addr, uint32_t size, char* source, void* data) {
+data_entry_t* initDataEntry(data_t type, uint32_t addr, uint32_t size, char* source, void* data) {
 	data_entry_t* dataEntry = (data_entry_t*) malloc(sizeof(data_entry_t));
 	if (!dataEntry) handleError(ERR_MEM, FATAL, "Could not allocate space for data entry!\n");
 
@@ -37,13 +37,13 @@ data_entry_t* initDataEntry(uint8_t type, uint32_t addr, uint32_t size, char* so
 	dataEntry->addr = addr;
 	dataEntry->size = size;
 	dataEntry->source = (char*) malloc(sizeof(char) * strlen(source) + 1);
-	strcpy(dataEntry->source, source);
+	if (dataEntry->source) strcpy(dataEntry->source, source); // source is optional, no fret if no space
 	dataEntry->data._data = data;	// Assuming it has been allocated
 
 	return dataEntry;
 }
 
-void addDataEntry(DataTable* dataTable, data_entry_t* dataEntry, data_sect_type_t sectType) {
+void addDataEntry(DataTable* dataTable, data_entry_t* dataEntry, data_sect_t sectType) {
 	data_entry_t*** entries = NULL;
 	uint32_t* size = 0;
 	uint32_t* capacity = 0;
@@ -81,7 +81,7 @@ void addDataEntry(DataTable* dataTable, data_entry_t* dataEntry, data_sect_type_
 	*size = *size + 1;
 }
 
-data_entry_t* getDataEntry(DataTable* dataTable, data_sect_type_t sectType, uint32_t addr) {
+data_entry_t* getDataEntry(DataTable* dataTable, data_sect_t sectType, uint32_t addr) {
 	data_entry_t** entries = NULL;
 	uint32_t size = 0;
 
@@ -108,20 +108,20 @@ static void displayDataEntry(data_entry_t* dataEntry) {
 	char* typeStr = NULL;
 	char* strdata = NULL;
 	switch (type)	{
-		case 0:
+		case STRING_TYPE:
 			typeStr = "string";
 			strdata = dataEntry->data.str;
 			break;
-		case 1:
+		case BYTES_TYPE:
 			typeStr = "bytes";
 			break;
-		case 2:
+		case HWORDS_TYPE:
 			typeStr = "halfwords";
 			break;
-		case 3:
+		case WORDS_TYPE:
 			typeStr = "words";
 			break;
-		case 4:
+		case FLOATS_TYPE:
 			typeStr = "floats";
 			break;
 		default:

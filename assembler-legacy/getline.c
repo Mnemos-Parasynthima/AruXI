@@ -1,5 +1,5 @@
-#include "unistd.h"
-#include "assemblerError.h"
+#include "unistd-legacy.h"
+#include "assemblerError-legacy.h"
 
 ssize_t getline(char** restrict lineptr, size_t* restrict n, FILE* restrict stream) {
   register char c;

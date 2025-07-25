@@ -12,7 +12,7 @@
 
 typedef enum {
 	WARN,
-	ERR_INNER,
+	ERR_INTERNAL,
 	ERR_MEM,
 	ERR_IO,
 	ERR_ENTRY_NOT_GLOBAL,
@@ -39,9 +39,9 @@ typedef enum {
 	WARNING
 } sevType;
 
+
 void handleError(errType err, sevType sev, const char* fmsg, ...);
 
-/** **/
 
 void debug(const char* fmsg, ...);
 

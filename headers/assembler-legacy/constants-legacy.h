@@ -1,5 +1,5 @@
-#ifndef _CONSTANTS_H_
-#define _CONSTANTS_H_
+#ifndef _CONSTANTS_LEGACY_H_
+#define _CONSTANTS_LEGACY_H_
 
 
 #define PTR(x) ((char*)(x))
